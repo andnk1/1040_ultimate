@@ -1,0 +1,272 @@
+/* 1040 Ultimate - same look as the K-1 Interpretation / 1040 Verification app (TaxPro blue/green) */
+:root{--navy:#3C69AB;--dark:#003366;--green:#446B67;--teal:#4e7874;--grey:#DFE1E9;--cardbg:#EFEFF7;--ink:#374151;--line:#9AA3B2;--mint:#7DD8C9;
+  --warnbg:#FDF0F0;--warn:#8B0000;--orange:#B45309;--orangebg:#FEF3E2;--ok:#1E7B4A;--okbg:#E3F4EA;--amb:#8A6100;--ambbg:#FFF4CC;--bad:#B42318;--badbg:#FDE2E2}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#fff;color:var(--ink)}
+.wrap{max-width:1880px;margin:0 auto;padding:28px 16px 60px}
+.wrap.narrow{max-width:1400px}
+h1{color:var(--dark);font-size:2.2rem;font-weight:800;margin:0 0 6px}
+h1::after{content:"";display:block;width:280px;height:1px;background:var(--line);margin-top:16px}
+.subtitle{color:#666;font-size:.9rem;margin:14px 0 22px}
+.card{background:var(--cardbg);border:1px solid var(--line);border-radius:8px;margin-bottom:18px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.cardhead{background:var(--dark);color:#fff;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:11px 20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+.cardhead .sub{text-transform:none;letter-spacing:0;font-weight:400;opacity:.85}
+.cardbody{padding:14px 20px 18px}
+label{display:block;font-size:.8rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
+.field{margin-bottom:16px}
+.pick{display:flex;gap:8px}
+.pick input{flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font-size:.9rem;font-family:inherit}
+.hint{font-size:.78rem;color:#6B7280;margin:6px 0 0}
+button,a.btn{display:inline-block;background:var(--dark);color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:.95rem;font-weight:600;cursor:pointer;text-decoration:none;font-family:inherit}
+button:hover,a.btn:hover{background:#1A4D80}
+button.alt,a.btn.alt{background:var(--green)} button.alt:hover,a.btn.alt:hover{background:var(--teal)}
+button.small{padding:7px 14px;font-size:.82rem}
+button.light{background:var(--mint);color:var(--ink)} button.light:hover{background:#9BE3D7}
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.tabs a{padding:9px 18px;border-radius:8px 8px 0 0;background:var(--grey);color:var(--ink);text-decoration:none;font-weight:600;font-size:.9rem}
+.tabs a.on{background:var(--dark);color:#fff}
+.tabs a.soon{opacity:.6}
+.error{background:var(--warnbg);border-left:4px solid var(--warn);color:var(--warn);padding:10px 14px;border-radius:6px;margin:0 0 16px;font-weight:600;font-size:.86rem}
+.banner{background:#F1F5F4;border-left:4px solid #294F4C;color:#294F4C;font-weight:600;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:.88rem;line-height:1.6}
+.tiles{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.tile{background:#fff;border:1px solid var(--grey);border-radius:8px;padding:10px 16px;min-width:120px}
+.tile .n{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums}
+.tile .l{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6B7280}
+.tile.g .n{color:var(--ok)} .tile.a .n{color:var(--amb)} .tile.r .n{color:var(--bad)} .tile.m .n{color:var(--orange)} .tile.f .n{color:#6B7280} .tile.b .n{color:var(--navy)}
+table.v{width:100%;border-collapse:collapse;background:#fff;font-size:.86rem;border:1px solid var(--grey)}
+table.v th{background:#F7F7FB;color:var(--teal);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:7px 10px;border-bottom:1px solid var(--grey)}
+table.v td{padding:6px 10px;border-bottom:1px solid var(--grey);vertical-align:top}
+table.v td.n,table.v th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.v tr.tot td{font-weight:700;background:#F7F7FB}
+td.b{font-weight:700;color:var(--dark)}
+.pill{display:inline-block;font-size:.7rem;font-weight:700;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.pill.program{background:var(--okbg);color:var(--ok)} .pill.ai{background:var(--orangebg);color:var(--orange)}
+.pill.context{background:#E5EDF8;color:var(--navy)} .pill.excluded{background:var(--grey);color:var(--ink)} .pill.skipped{background:var(--grey);color:#6B7280}
+.pill.yes{background:var(--okbg);color:var(--ok)} .pill.no{background:var(--badbg);color:var(--bad)} .pill.new{background:var(--ambbg);color:var(--amb)}
+tr.r-program td:first-child{border-left:4px solid var(--ok)} tr.r-ai td:first-child{border-left:4px solid var(--orange)}
+tr.r-context td:first-child{border-left:4px solid var(--navy)} tr.r-excluded td:first-child,tr.r-skipped td:first-child{border-left:4px solid var(--grey)}
+tr.r-skipped td,tr.r-excluded td{color:#6B7280}
+.note{font-size:.78rem;color:#6B7280}
+.flag{color:var(--bad);font-weight:700}
+.neg{color:inherit}
+.empty{color:#9AA3B2}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:#fff;border:1px solid var(--grey);border-radius:6px;padding:4px 9px;font-size:.8rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+.kv{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:12px;font-size:.9rem}
+.kv b{color:var(--dark)}
+details.card>summary{list-style:none;cursor:pointer}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary .arrow{display:inline-block;transition:transform .15s;margin-right:8px}
+details.card[open]>summary .arrow{transform:rotate(90deg)}
+input.amt{width:130px;text-align:right;padding:5px 8px;border:1px solid var(--grey);border-radius:5px;font-size:.86rem;font-family:inherit;font-variant-numeric:tabular-nums}
+input.amt::placeholder{color:#A8B0BD;font-style:italic}
+input.bname{padding:6px 9px;border:1px solid var(--line);border-radius:5px;font-size:.9rem;min-width:280px;font-family:inherit}
+td.calc{font-weight:700;color:var(--dark)}
+tr.sec td{background:#F7F7FB;font-weight:700;color:var(--teal);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+.ho-off{color:var(--orange);font-weight:600;font-size:.8rem}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:20px 0 6px}
+.disclaimer{font-size:.75rem;color:#6B7280;margin-top:34px;line-height:1.5}
+.hidden{display:none!important}
+@media print{@page{size:letter landscape;margin:10mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.noprint{display:none!important}.wrap{max-width:none;padding:0}tr{break-inside:avoid}.card{box-shadow:none}}
+table.inc td{padding:5px 10px}
+table.inc tr.tot td{background:#EEEEF2;font-weight:700}
+table.inc tr.grand td{background:#DADCE3;font-weight:800;color:var(--dark);border-top:2px solid var(--line)}
+table.inc td.redrow{color:#C00000}
+table.inc tr.exrow td{color:#9AA3B2;text-decoration:line-through}
+table.inc tr.exrow td.note{text-decoration:none}
+.tabs a.soon{opacity:.6}
+.ptabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--dark)}
+.ptabs a{padding:8px 16px;border-radius:8px 8px 0 0;background:var(--grey);color:var(--ink);text-decoration:none;font-weight:600;font-size:.86rem}
+.ptabs a.on{background:var(--dark);color:#fff}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:4px 18px}
+tr.soft td{background:#FAFAFC;font-style:italic}
+tr.soft td.b{color:#6B7280}
+.grid-main{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:18px;align-items:start}
+@media(max-width:1100px){.grid-main{grid-template-columns:1fr}}
+table.inc tr.st-none td{color:#B42318}
+table.inc tr.memo td{font-style:italic;color:#6B7280}
+table.inc input.amt{width:120px;padding:3px 6px;border:1px solid transparent;background:transparent}
+table.inc input.amt:hover,table.inc input.amt:focus{border-color:var(--grey);background:#fff}
+table.inc input.amt.edited{background:#FFF4CC;border-color:#D4A017}
+table.inc tr.st-none input.amt{color:#B42318}
+.sublabel{font-size:.74rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px}
+.sublabel:first-child{margin-top:0}
+ul.checks{margin:4px 0 0;padding-left:20px;font-size:.88rem;line-height:1.8}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start}
+@media(max-width:1100px){.grid3{grid-template-columns:1fr}}
+.mrow{display:grid;grid-template-columns:190px 1fr auto;gap:6px 12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--grey)}
+.mlabel{font-size:.8rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em}
+.mlabel .note{display:block;text-transform:none;letter-spacing:0;font-weight:400}
+.mboxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.mboxes input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:.86rem;font-family:inherit;min-width:0}
+.mboxes.wide{grid-template-columns:repeat(3,minmax(0,1fr))}
+a.more{font-size:.8rem;font-weight:700;color:var(--navy);text-decoration:none;white-space:nowrap}
+a.more .arrow{display:inline-block;transition:transform .15s}
+.mrow.open a.more .arrow{transform:rotate(90deg)}
+textarea.morebox{display:none;grid-column:2 / 4;width:100%;min-height:54px;padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-family:inherit;font-size:.86rem}
+.mrow.open textarea.morebox{display:block}
+@media(max-width:900px){.mrow{grid-template-columns:1fr}.mboxes{grid-template-columns:repeat(2,minmax(0,1fr))}textarea.morebox{grid-column:1}}
+td.kans{white-space:pre-line}
+/* Schedule C: two businesses side by side, more below */
+.bizgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 34px;position:relative}
+.bizgrid>.bizcard{margin-bottom:0;position:relative}
+.bizgrid>.bizcard:nth-child(2n)::before{content:"";position:absolute;left:-18px;top:0;bottom:0;border-left:2px solid var(--line)}
+@media(max-width:1100px){.bizgrid{grid-template-columns:1fr}.bizgrid>.bizcard:nth-child(2n)::before{display:none}}
+.bizcard input.amt{width:110px}
+.bfixed{font-weight:800;color:var(--dark);font-size:1rem;padding:6px 0}
+/* checkmarks */
+th.ck,td.ck{width:34px;text-align:center}
+td.ck input{width:16px;height:16px;accent-color:var(--green);cursor:pointer}
+tr.mk.done td{background:#E3F4EA}
+/* print only the income summary */
+@media print{body.print-inc .wrap>*:not(.incwrap){display:none!important}body.print-inc #incCard{display:block!important}
+  body.print-inc input.amt{border:none;background:none}}
+
+/* income summary + UT summary side by side (the income table keeps its full width; the row uses the whole screen) */
+.incwrap{display:flex;gap:16px;align-items:flex-start;width:calc(100vw - 32px);margin-left:calc(50% - 50vw + 16px)}
+.incwrap>.inccol{flex:1 1 auto;min-width:0}
+.utcard{flex:0 0 330px;position:sticky;top:10px}
+.utcard .cardbody{padding:10px 12px}
+table.ut td{padding:2px 6px;font-size:.8rem;border-bottom:1px solid #F0F0F4}
+table.ut tr.utb td{font-weight:800;color:var(--dark)}
+table.ut input.utamt{width:110px;text-align:right;padding:2px 6px;font-size:.8rem;border:1px solid var(--grey);border-radius:5px;font-family:inherit;font-variant-numeric:tabular-nums}
+table.ut input.auto{color:#1F4FB4;border-color:transparent;background:#F4F7FD}
+table.ut input.auto.manual{color:#446B67;background:#fff;border-color:#446B67;font-weight:700}
+.utfs{font-size:.8rem;font-weight:700;color:var(--teal);margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.utfs select{font-size:.8rem;padding:3px 6px;border:1px solid var(--grey);border-radius:5px;font-family:inherit}
+button.plus{border:1px solid var(--grey);background:#fff;color:var(--teal);font-weight:800;width:20px;height:20px;line-height:16px;padding:0;
+  border-radius:4px;margin-right:8px;cursor:pointer;font-size:.9rem}
+button.plus:hover{background:var(--teal);color:#fff}
+table.inc tr.added td{background:#F6FBF8}
+table.inc input.txt{width:100%;box-sizing:border-box;padding:3px 6px;border:1px solid var(--grey);border-radius:5px;font-size:.84rem;font-family:inherit;background:#fff}
+table.inc tr.added input.amt{border-color:var(--grey);background:#fff}
+@media(max-width:1300px){.incwrap{flex-direction:column;width:auto;margin-left:0}.utcard{position:static;flex:none;width:100%}}
+@media print{body.print-inc .wrap>*:not(.incwrap){display:none!important}body.print-inc .incwrap{display:block;width:auto;margin:0}
+  body.print-inc #utCard{display:none!important}body.print-inc input.txt{border:none;background:none}
+  .incwrap{display:block;width:auto;margin:0}}
+
+/* amounts entered by the preparer (typed over, typed into a not-read row, or added with +): green on white */
+table.inc input.amt.edited, table.inc tr.st-none input.amt.edited{background:#fff;border-color:#446B67;color:#446B67;font-weight:700}
+table.inc tr.added td, table.inc tr.added input{color:#446B67}
+table.inc tr.added td{background:#fff}
+table.inc tr.added input.amt{border-color:#446B67;background:#fff;font-weight:700}
+table.inc tr.st-none.filled td{color:#446B67}
+table.inc tr.st-none.filled input.amt{color:#446B67}
+/* Schedule C: business picker, P&L mapping (left) + Schedule C (right) */
+.bizpick{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px;border-bottom:2px solid var(--dark)}
+.bizpick .tabbtn{border:none;padding:8px 16px;border-radius:8px 8px 0 0;background:var(--grey);color:var(--ink);font-weight:600;font-size:.86rem;cursor:pointer;font-family:inherit}
+.bizpick .tabbtn.on{background:var(--dark);color:#fff}
+.bizpick .tabbtn.add{background:#fff;color:var(--teal);border:1px dashed var(--teal)}
+.plgrid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+@media(max-width:1200px){.plgrid{grid-template-columns:1fr}}
+.plhead{font-size:.85rem;margin-bottom:6px;color:var(--dark)}
+table.plt td,table.sct td{padding:3px 8px;font-size:.82rem}
+table.plt select{font-size:.8rem;padding:2px 4px;border:1px solid var(--grey);border-radius:4px;font-family:inherit;max-width:240px}
+table.plt tr.off td{color:#9AA3B2}
+#schcBox input.amt{width:110px}
+#schcBox input.amt.soft{color:#1F4FB4;background:#F4F7FD;border-color:transparent}
+#schcBox input.amt.edited{color:#446B67;background:#fff;border-color:#446B67;font-weight:700}
+.dl{font-size:.8rem;color:#666}
+.dl a{color:var(--teal)}
+
+/* notes: editable on every row (program note + your comments) */
+table.inc textarea.noteed{width:100%;box-sizing:border-box;border:1px solid transparent;background:transparent;font:inherit;font-size:.78rem;
+  color:inherit;resize:vertical;padding:2px 4px;min-height:1.6em;overflow:hidden}
+table.inc textarea.noteed:hover,table.inc textarea.noteed:focus{border-color:var(--grey);background:#fff}
+table.inc textarea.noteed.edited{color:#446B67;border-color:#446B67;background:#fff;font-weight:600}
+table.inc textarea.noteed.redrow{color:#C00000}
+table.inc tr.red input.amt{border-color:var(--grey);background:#fff}
+table.inc tr.red input.amt.edited{color:#446B67;border-color:#446B67;font-weight:700}
+@media print{table.inc textarea.noteed{border:none;resize:none}}
+/* verify screen */
+table.v tr.badrow td{background:#FFF5F5}
+#clTable select{font-size:.82rem;padding:2px 4px;border:1px solid var(--grey);border-radius:4px;font-family:inherit}
+#clTable input.txt{width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid var(--grey);border-radius:5px;font-size:.84rem;font-family:inherit}
+
+table.inc .chg{color:#446B67;font-weight:700;font-size:.76rem;margin-bottom:2px}
+.mine{color:#446B67}
+
+/* document inventory (top of screen 1) */
+table.invt input.txt{width:100%;box-sizing:border-box;padding:3px 6px;border:1px solid var(--grey);border-radius:5px;font-size:.84rem;font-family:inherit;background:#fff}
+table.invt input.amt{width:120px}
+table.invt input.amt.edited{border-color:#446B67;color:#446B67;font-weight:700}
+table.invt select.isec{font-size:.82rem;padding:3px 4px;border:1px solid var(--grey);border-radius:5px;font-family:inherit;max-width:220px}
+table.invt tr.vok td{background:#E6F4EA}
+table.invt td.ck input.ver{accent-color:#2E7D32}
+table.invt td:nth-child(8){min-width:260px}
+tr.ambrow td{background:#FFF8E1}
+
+/* comments boxes */
+textarea.cmtbox{width:100%;box-sizing:border-box;margin-top:8px;padding:6px 8px;border:1px solid var(--grey);border-radius:6px;font:inherit;font-size:.86rem;background:#fff;resize:vertical}
+table.v input.recvin{width:100%;box-sizing:border-box;padding:3px 6px;border:1px solid var(--grey);border-radius:5px;font:inherit;font-size:.82rem}
+.recvgrid{grid-template-columns:2fr 1fr}
+table.invt tr.invadd td{border-bottom:none;padding-top:8px}
+/* income summary: one block per income type (soft grey + dark bracket, like the banner); nothing red */
+table.inc{border-collapse:separate;border-spacing:0;border:1px solid var(--grey);background:#fff}
+table.inc tbody.secblk td{background:#fff}
+table.inc tbody.secblk tr.docrow td{background:#fff}
+table.inc tbody.secblk tr.docrow td:first-child{border-left:4px solid #294F4C}
+table.inc tbody.secblk tr.tot td{background:#E3F1E8;font-weight:700;border-top:1px solid #CFE3D6}
+table.inc tbody.secblk tr.added td{background:#fff}
+table.inc tbody.secblk.empty tr.red{display:none}
+table.inc tbody.secblk.empty td{padding-top:3px;padding-bottom:3px}
+table.inc tbody.gap td{height:8px;padding:0;border:none;background:#fff}
+table.inc tbody.grandblk td:first-child{border-left:4px solid #003366}
+table.inc .neg{color:inherit}
+table.inc td.redrow, table.inc textarea.noteed.redrow{color:var(--ink)}
+table.inc tr.red td.redrow, table.inc tr.red textarea.noteed.redrow, table.inc tr.red input.amt{color:#1F5FBF}
+table.inc tr.st-none td, table.inc tr.st-none input.amt{color:var(--ink)}
+table.inc input.cyin[data-kind="fit"]:not(.edited){color:#9AA3B2}
+@media print{table.inc tbody.secblk td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+/* Schedule E box */
+#scheBox table.sct{max-width:1200px}
+#scheBox table.sce td:nth-child(n+3){width:190px}
+#scheBox input.ename{width:180px;box-sizing:border-box;padding:3px 6px;border:1px solid var(--grey);border-radius:5px;font:inherit;font-size:.82rem}
+#scheBox input.eday{width:78px}
+#scheBox select.etype{width:180px}
+#scheBox input.ein{width:150px}
+#scheBox input.amt.edited{border-color:#446B67;color:#446B67;font-weight:700;background:#fff}
+#scheBox input.txt.e19{width:150px;margin-top:3px;padding:2px 6px;border:1px solid var(--grey);border-radius:5px;font:inherit;font-size:.8rem}
+#scheBox select.etype{font:inherit;font-size:.82rem;padding:3px 4px;border:1px solid var(--grey);border-radius:5px}
+table.inc tr.red input.amt.edited{color:#1F5FBF;border-color:#1F5FBF}
+table.recvt tr.vok td{background:#E6F4EA}
+table.recvt td.ck input{accent-color:#2E7D32}
+/* numbers typed by the preparer on the income summary: blue, not bold */
+table.inc input.amt.edited, table.inc tr.st-none input.amt.edited, table.inc tr.added input.amt, table.inc tr.red input.amt.edited,
+table.inc tr.added td, table.inc tr.added input{color:#1F5FBF;font-weight:400}
+table.inc input.amt.edited, table.inc tr.added input.amt, table.inc tr.red input.amt.edited{border-color:#1F5FBF;background:#fff}
+table.inc tr.st-none.filled td, table.inc tr.st-none.filled input.amt{color:#1F5FBF}
+table.invt input.amt.edited{color:#1F5FBF;border-color:#1F5FBF;font-weight:400}
+/* ---- batch 21-31: ticks, yellow = changed by the preparer, red = data entry only, black negatives */
+.neg{color:inherit}
+.field.filef{max-width:820px;width:66%}
+.field.filef #go{margin-top:2px}
+span.rowck{display:inline-block;margin-right:6px;vertical-align:middle}
+span.rowck input{margin:0;width:13px;height:13px;cursor:pointer}
+table.inc tr.tot span.rowck{margin-right:4px}
+tr.ambrow td{background:#FFF3B0}
+table.v tr.mk.done.ambrow td, table.v tr.mk.done.badrow td{background:#E3F4EA}
+table.inc tr.docrow:not(.added):not(.red):not(.st-none) input.cyin.edited{background:#FFF3B0}
+table.v.dv input.mkn{width:100%;min-width:140px}
+table.v.dv td{vertical-align:top}
+#scheBox table.sct{max-width:1500px}
+#scheBox table.sce td:nth-child(n+3){width:150px}
+#scheBox table.sce td:nth-child(2){width:210px}
+#scheBox table.sce input.amt, #scheBox table.sce input.txt, #scheBox table.sce select{width:100%;box-sizing:border-box}
+#scheBox table.sce input.eday{width:48%}
+#scheBox tr.pyrow td{background:#F4F6F8;font-style:italic}
+.chip.mkbox input{margin:0 2px 0 0;vertical-align:middle;width:12px;height:12px}
+.chip.mkbox.done{background:#E3F4EA}
+/* ---- income summary: plain - white rows, bold totals with a thicker line under them, no side bar, no green */
+table.inc tbody.secblk tr.docrow td:first-child, table.inc tbody.grandblk td:first-child{border-left:none}
+table.inc tbody.secblk tr.tot td{background:#fff;border-top:none;border-bottom:2px solid #294F4C}
+table.inc tbody.gap{display:none}
+table.inc tbody.grandblk tr.grand td{border-top:none}
+/* equal number columns; amounts in boxes line up with the plain amounts (same right edge) */
+table.inc th.n, table.inc td.n{width:118px;min-width:118px;max-width:118px}
+table.inc td.n:has(input.amt){padding-right:3px}
+table.inc input.amt{width:100%;box-sizing:border-box;padding:3px 6px 3px 2px;text-align:right}
+table.inc input.amt{padding:0 6px 0 2px;margin:-1px 0;line-height:inherit;font:inherit;vertical-align:top}
+table.inc td{vertical-align:top}

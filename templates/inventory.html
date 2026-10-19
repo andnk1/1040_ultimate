@@ -1,0 +1,98 @@
+{# Document inventory - top of screen 1. Read documents are listed (amounts on the income summary);
+   a not-read document can carry one amount + the income line it goes to; + adds free lines. #}
+{% set RDL = {'read': ('yes', 'Read'), 'partial': ('new', 'Partly read'), 'none': ('no', 'Not read')} %}
+<div class="card" id="invCard">
+  <div class="cardhead">Document inventory <span class="sub">{{ invrows|rejectattr('free')|list|length }} documents · sorted by file name · an amount here goes to the income summary (per preparer)</span></div>
+  <div class="cardbody">
+    <table class="v invt" id="invTable">
+      <tr><th class="ck" title="Verified">✓</th><th>File name</th><th>Issuer</th><th>Year</th><th>Program read</th><th class="n">Amount</th><th>Added to</th><th>Note</th><th class="ck" title="Goes to the AI (masked)">AI</th></tr>
+      {% if r.form.pyret %}<tr class="toairow"><td class="ck"></td>
+        <td>{{ r.form.pyret.split('\\')[-1].split('/')[-1] }} <span class="note">(prior-year return)</span></td><td></td><td>{{ r.py.year or '' }}</td><td></td><td></td><td></td>
+        <td class="note">Summary, carryovers and forms are in the AI report; tick to send the return too.</td>
+        <td class="ck"><input type="checkbox" class="toai" data-path="{{ r.form.pyret }}" {{ 'checked' if r.to_ai.get(r.form.pyret) }}></td></tr>{% endif %}
+      {% for d in invrows %}
+      <tr class="invrow{{ ' vok' if d.verified }}{{ ' free' if d.free }}" data-key="{{ d.key }}" data-free="{{ 1 if d.free else 0 }}" data-read="{{ 1 if d.is_read else 0 }}">
+        <td class="ck"><input type="checkbox" class="ver" {{ 'checked' if d.verified }}></td>
+        {% if d.free %}
+        <td><input class="txt iname" value="{{ d.file }}" placeholder="Document / description"></td>
+        <td><input class="txt iissuer" value="{{ d.issuer }}" placeholder="Issuer"></td>
+        <td></td><td></td>
+        {% else %}
+        <td title="{{ d.path }}">{{ d.file }}{% if d.password %} <span class="note">(password)</span>{% endif %}</td>
+        <td>{{ d.issuer }}</td>
+        <td>{% if d.year_flag %}<span class="flag">{{ d.year }}</span>{% else %}{{ d.year }}{% endif %}</td>
+        <td><span class="pill {{ RDL.get(d.read, RDL['none'])[0] }}">{{ RDL.get(d.read, RDL['none'])[1] }}</span></td>
+        {% endif %}
+        {% if d.is_read %}
+        <td class="n note">{{ 'not income — note only' if d.feeds == 'comments only' else 'on the income summary' }}</td><td class="note">{{ d.feeds }}</td>
+        {% else %}
+        <td class="n"><input class="amt iamt{{ ' edited' if d.cy is not none }}" data-v="{{ '%.2f' % d.cy if d.cy is not none }}" data-shown="{{ '{:,.0f}'.format(d.cy) if d.cy is not none }}" value="{{ '{:,.0f}'.format(d.cy) if d.cy is not none }}" placeholder="amount"></td>
+        <td><select class="isec"><option value="">—</option>
+          {% for k, l, _ in INV_SECS %}<option value="{{ k }}" {{ 'selected' if d.sec == k }}>{{ l|replace('Total ', '') }}</option>{% endfor %}</select></td>
+        {% endif %}
+        <td><input class="txt inote" value="{{ d.note }}" placeholder="Note"></td>
+        <td class="ck">{% if not d.free %}<input type="checkbox" class="toai" data-path="{{ d.path }}" {{ 'checked' if d.ai }}>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      {% for m in r.inv.missing %}<tr class="r-skipped"><td></td><td>{{ m }}</td><td colspan="7" class="flag">File not found</td></tr>{% endfor %}
+      <tr class="invadd noprint"><td class="ck"><button type="button" class="plus" title="Add a line" onclick="invAdd()">+</button></td><td colspan="8"></td></tr>
+    </table>
+    <div class="sublabel">Client comments</div>
+    <textarea class="cmtbox" id="clientCmt" rows="3" placeholder="General comments about the client (kept with the work in progress; shown on Verify return and in the review Excel)">{{ r.comments.client or '' }}</textarea>
+    <p class="note">✓ = verified (the row turns green; the tick goes into the Save review Excel). A not-read document takes one amount + the line it goes to;
+      more amounts from the same document go on the income summary with +. <b>+</b> at the bottom adds a free line. <b>AI</b> ticked = the document goes to the AI (masked) — the masking list on screen 3 follows these ticks.</p>
+  </div>
+</div>
+<script>
+(function () {
+  const T = document.getElementById('invTable');
+  const num0 = v => { v = (v || '').replace(/[,$\s]/g, ''); if (/^\(.*\)$/.test(v)) v = '-' + v.slice(1, -1); return v === '' || isNaN(+v) ? null : +v; };
+  // whole dollars on screen; the exact amount stays in data-v until the box is changed
+  const num = (v, el) => el && el.dataset.shown !== undefined && el.value === el.dataset.shown ? (el.dataset.v === '' || el.dataset.v === undefined ? null : +el.dataset.v) : num0(v);
+  function state() {
+    const s = {verified: {}, amt: {}, notes: {}, free: []};
+    T.querySelectorAll('tr.invrow').forEach(tr => {
+      const k = tr.dataset.key, q = c => tr.querySelector(c);
+      const ver = q('.ver').checked, note = q('.inote').value;
+      if (tr.dataset.free === '1') {
+        s.free.push({id: k, name: q('.iname').value, issuer: q('.iissuer').value, cy: num(q('.iamt').value, q('.iamt')), sec: q('.isec').value, note, verified: ver});
+        return;
+      }
+      if (ver) s.verified[k] = true;
+      s.notes[k] = note;
+      if (q('.iamt')) s.amt[k] = {cy: num(q('.iamt').value, q('.iamt')), sec: q('.isec').value};
+    });
+    return s;
+  }
+  function save(reload) {
+    return fetch('/inventory/{{ token }}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(state())})
+      .then(() => { if (!reload) return; try { sessionStorage.setItem('scrollY', scrollY); } catch (e) {} location.reload(); });
+  }
+  T.addEventListener('change', e => {
+    const tr = e.target.closest('tr.invrow'); if (!tr) return;
+    if (e.target.classList.contains('ver')) tr.classList.toggle('vok', e.target.checked);
+    if (e.target.classList.contains('iamt') && e.target.value !== e.target.dataset.shown) {
+      const v = num(e.target.value); e.target.dataset.v = v === null ? '' : v;
+      e.target.value = v === null ? '' : v.toLocaleString('en-US', {maximumFractionDigits: 0}); e.target.dataset.shown = e.target.value; }
+    // an amount + its line (or the name / note of a line that is on the income summary) -> the income summary changes
+    const onInc = tr.querySelector('.iamt') && num(tr.querySelector('.iamt').value, tr.querySelector('.iamt')) !== null && tr.querySelector('.isec').value;
+    const big = e.target.matches('.iamt, .isec') || (onInc && e.target.matches('.iname, .inote'));
+    save(big && (onInc || e.target.matches('.iamt, .isec')));
+  });
+  window.invAdd = function () {
+    const id = 'f' + Date.now();
+    const tr = document.createElement('tr');
+    tr.className = 'invrow free'; tr.dataset.key = id; tr.dataset.free = '1'; tr.dataset.read = '0';
+    tr.innerHTML = `<td class="ck"><input type="checkbox" class="ver"></td><td><input class="txt iname" placeholder="Document / description"></td>
+      <td><input class="txt iissuer" placeholder="Issuer"></td><td></td><td></td><td class="n"><input class="amt iamt" placeholder="amount"></td>
+      <td>${T.querySelector('select.isec') ? T.querySelector('select.isec').outerHTML.replace(/ selected=""/g, '') : '<select class="isec"><option value="">—</option>{% for k, l, _ in INV_SECS %}<option value="{{ k }}">{{ l|replace("Total ", "") }}</option>{% endfor %}</select>'}</td>
+      <td><input class="txt inote" placeholder="Note"></td><td class="ck"></td>`;
+    const miss = T.querySelector('tr.r-skipped') || T.querySelector('tr.invadd');
+    miss.before(tr);
+    tr.querySelector('.isec').value = '';
+    tr.querySelector('.iname').focus();
+    save(false);
+  };
+  try { const y = sessionStorage.getItem('scrollY'); if (y) { sessionStorage.removeItem('scrollY'); window.addEventListener('load', () => scrollTo(0, +y)); } } catch (e) {}
+})();
+</script>

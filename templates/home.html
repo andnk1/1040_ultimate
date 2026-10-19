@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1040 Ultimate</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="wrap narrow">
+  <h1>1040 Ultimate</h1>
+  <p class="subtitle">Read the prior-year return and the client's documents, then review what the program found.</p>
+
+
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <div class="card">
+    <div class="cardhead">Choose the files <span class="sub">the 2025 return is checked on screen 2</span></div>
+    <div class="cardbody">
+      <form method="post" action="/run" id="f">
+        <input type="hidden" name="mode" value="{{ mode }}">
+        <input type="hidden" name="docs" id="docsField">
+        <div id="wipNote" class="banner hidden"></div>
+        <div class="field"><label>Prior-year return (PDF) — optional</label>
+          <div class="pick"><input name="pyret" id="pyret" value="{{ form.pyret or '' }}" placeholder="C:\dev\1040_ultimate\Return_Info\Client_2025\2024 return.pdf">
+            <button type="button" class="light small pickbtn" onclick="pickReturn()">Browse…</button></div>
+          <p class="hint">Full print package with worksheets works best (UltraTax: Two Year Comparison, Carryover Summary, K-1 worksheets).</p></div>
+        <div class="field"><label>Karbon organizer (PDF) — optional</label>
+          <div class="pick"><input name="karbon" id="karbon" value="{{ form.karbon or '' }}" placeholder="Karbon &quot;Client Request Summary&quot; PDF">
+            <button type="button" class="light small pickbtn" onclick="pickFile('karbon')">Browse…</button></div>
+          <p class="hint">The client's answers show in a "Karbon Summary" box (every answer that isn't "No").</p></div>
+        <div class="field"><label>UltraTax input screens (PDF) — optional</label>
+          <div class="pick"><input name="utscreens" id="utscreens" value="{{ form.utscreens or '' }}" placeholder="UT input screens print (can also be added on Verify return)">
+            <button type="button" class="light small pickbtn" onclick="pickFile('utscreens')">Browse…</button></div>
+          <p class="hint">With the input screens, Verify return checks every line: per document / per preparer / per UT entry, and lists UT entries with no document behind them.</p></div>
+        <div class="field"><label>Work in progress (.json) — optional</label>
+          <div class="pick"><input name="wip" id="wip" value="{{ form.wip or '' }}" placeholder="Found automatically next to the Karbon letter / prior-year return — or browse to it">
+            <button type="button" class="light small pickbtn" onclick="pickWip()">Browse…</button></div>
+          <p class="hint">Picks up where you left off: your amounts, comments, ticks, Schedule C / E, checklist and the file paths.</p></div>
+        <div class="field"><label>Documents — optional</label>
+          <div class="bar" style="margin:0 0 8px">
+            <button type="button" class="light small pickbtn" onclick="addDocs('files')">Add documents…</button>
+            <button type="button" class="light small pickbtn" onclick="addDocs('folderfiles')">Add all files in a folder…</button>
+            <button type="button" class="light small" onclick="DOCS=[];draw()">Clear list</button>
+            <span class="note" id="cnt"></span> <span class="note" id="pickMsg"></span>
+          </div>
+          <table class="v" id="docTable"></table>
+          <p class="hint">Untick a document to skip it. Add more with the buttons (Ctrl / Shift to pick several at once).</p></div>
+        <button type="submit" id="go">Run check</button> <span id="wait" class="note hidden">Reading… large sets can take a minute — the black window shows each step.</span>
+      </form>
+    </div>
+  </div>
+  <p class="disclaimer">Internal preparer aid — runs on this computer only, nothing is uploaded. Contains client data: internal use only. Federal only.</p>
+</div>
+<script src="{{ url_for('static', filename='browse.js') }}"></script>
+<script>
+let DOCS = {{ docs|tojson }};
+const base = p => p.split(/[\\/]/).pop();
+const dir = p => p.slice(0, p.length - base(p).length);
+function draw() {
+  const t = document.getElementById('docTable');
+  t.innerHTML = DOCS.length ? '<tr><th style="width:60px">Use</th><th>Document</th><th>Folder</th><th></th></tr>' + DOCS.map((d, i) =>
+    `<tr><td><input type="checkbox" ${d.on !== false ? 'checked' : ''} onchange="DOCS[${i}].on=this.checked;count()"></td>
+     <td class="b">${base(d.path)}</td><td class="note">${dir(d.path)}</td>
+     <td><button type="button" class="light small" onclick="DOCS.splice(${i},1);draw()">✕</button></td></tr>`).join('')
+    : '<tr><td class="note">No documents yet.</td></tr>';
+  count();
+}
+function count() { const on = DOCS.filter(d => d.on !== false).length; document.getElementById('cnt').textContent = DOCS.length ? `${on} of ${DOCS.length} selected` : ''; }
+async function addDocs(kind) {
+  const j = await browse(kind);
+  (j.paths || []).forEach(p => { if (!DOCS.some(d => d.path.toLowerCase() === p.toLowerCase())) DOCS.push({path: p, on: true}); });
+  draw();
+}
+async function pickFile(id) {
+  const el = document.getElementById(id);
+  const j = await browse('file', el.value ? dir(el.value) : '');
+  if (j.path) { el.value = j.path; if (id === 'karbon') findWip(j.path); }
+}
+async function pickReturn() {
+  const el = document.getElementById('pyret');
+  const j = await browse('file', el.value ? dir(el.value) : '');
+  if (j.path) { el.value = j.path; findWip(j.path); }
+}
+async function pickWip() {
+  const el = document.getElementById('wip');
+  const j = await browse('file', el.value ? dir(el.value) : '');
+  if (j.path) { el.value = j.path; document.getElementById('wipNote').classList.add('hidden'); }
+}
+// a work in progress next to the file just picked: ask first - Continue / Start fresh
+let wipAsked = {}, WIPHIT = '';
+async function findWip(path) {
+  if (document.getElementById('wip').value) return;
+  const j = await (await fetch('/wip/find', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path})})).json();
+  if (!j.path || wipAsked[j.path]) return;
+  wipAsked[j.path] = true; WIPHIT = j.path;
+  const n = document.getElementById('wipNote');
+  n.innerHTML = `Work in progress found: <b>${j.file}</b> (saved ${j.saved || '?'}).
+    <button type="button" onclick="wipContinue()">Continue where you left off</button>
+    <button type="button" class="light" onclick="document.getElementById('wipNote').classList.add('hidden')">Start fresh</button>`;
+  n.classList.remove('hidden');
+}
+function wipContinue() {
+  document.getElementById('wip').value = WIPHIT;
+  document.getElementById('f').requestSubmit();
+}
+document.getElementById('f').addEventListener('submit', () => {
+  document.getElementById('docsField').value = JSON.stringify(DOCS);
+  document.getElementById('go').disabled = true; document.getElementById('wait').classList.remove('hidden');
+});
+draw();
+</script>
+</body>
+</html>

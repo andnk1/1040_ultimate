@@ -1,0 +1,139 @@
+{# UT (UltraTax) summary - the "Watch" window, filled from the income summary. Every field can be typed over;
+   clear a field to go back to the calculated amount. Not in the Excel file. #}
+<div class="card utcard noprint" id="utCard">
+  <div class="cardhead">UT summary <span class="sub">{{ inc.cy_year }} estimate</span></div>
+  <div class="cardbody">
+    <div class="utfs">Filing status
+      <select id="utFs">
+        {% for k, l in [('SGL','Single'),('MFJ','Married filing jointly'),('MFS','Married filing separately'),('HOH','Head of household'),('QSS','Qualifying surviving spouse')] %}
+        <option value="{{ k }}">{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+    <table class="v ut" id="utTable"></table>
+    <p class="note">Blue = calculated from the income summary · green = typed by you (clear the box to recalculate) · white = enter.
+      {{ inc.cy_year }} brackets and standard deduction; tax uses the qualified dividend / capital gain rates. Not included:
+      AMT, 65+/blind and senior deductions, QBI wage limits above the threshold, Add'l Medicare tax. Total Income includes
+      IRA, pensions, 85% of Social Security and other income. SE tax caps the 12.4% part using W-2 wages.</p>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const PYFS = {{ (r.py.filing_status or '')|tojson }};
+  const SAVED = {{ (r.ut or {})|tojson }};
+  const QD = {{ inc.qd|tojson }};
+  // [id, label, kind] kind: c = calculated (can be typed over), i = input only, h = heading line
+  const F = [
+    ['wages', 'Total Salaries and Wages', 'c'], ['interest', 'Taxable Interest', 'c'], ['ordDiv', 'Ordinary Dividends', 'c'],
+    ['qualDiv', 'Qualified Dividends', 'c'], ['schC', 'Schedule C Income/Loss', 'c'], ['capGain', 'Capital Gain/Loss', 'c'],
+    ['schE', 'Schedule E Income/Loss', 'c'], ['schF', 'Schedule F Income/Loss', 'i'], ['totalIncome', 'Total Income', 'c'],
+    ['iraDed', 'IRA Deduction', 'i'], ['totalDed', 'Total Deductions', 'c'], ['agi', 'AGI', 'c'],
+    ['itemized', 'Itemized Deductions', 'i'], ['standard', 'Standard Deduction', 'c'], ['qbi', 'QBI', 'c'],
+    ['taxable', 'Taxable Income', 'c'], ['regTax', 'Regular Tax', 'c'], ['taxBefore', 'Tax Before Credits', 'c'],
+    ['depCare', 'Dependent Care Credit', 'i'], ['edu', 'Education Credits', 'i'], ['ctc', 'Child Tax Credit / ODC', 'i'],
+    ['totalCredits', 'Total Credits', 'c'], ['seTax', 'Self-Employment Tax', 'c'], ['niit', 'Other Taxes (NIIT)', 'c'],
+    ['totalTax', 'Total Tax', 'c'], ['withheld', 'Income Tax Withheld', 'c'], ['estPaid', 'Est. Payments Made', 'i'],
+    ['refundable', 'Total Refundable Credits', 'i'], ['overpay', 'Overpayment', 'c'], ['refunded', 'Amount Refunded', 'c'],
+    ['applied', 'Overpayment Applied to Next Yr', 'i'], ['nextEst', 'Next Yr Est Payments', 'i'], ['balance', 'Balance Due', 'c'],
+  ];
+  const BOLD = new Set(['totalIncome', 'agi', 'taxable', 'totalTax', 'balance', 'overpay']);
+  // 2025 (OBBBA standard deduction)
+  const BR = {SGL: [11925, 48475, 103350, 197300, 250525, 626350], MFJ: [23850, 96950, 206700, 394600, 501050, 751600],
+              MFS: [11925, 48475, 103350, 197300, 250525, 375800], HOH: [17000, 64850, 103350, 197300, 250500, 626350]};
+  BR.QSS = BR.MFJ;
+  const RATES = [0.10, 0.12, 0.22, 0.24, 0.32, 0.35, 0.37];
+  const CG0 = {SGL: 48350, MFJ: 96700, MFS: 48350, HOH: 64750, QSS: 96700};
+  const CG15 = {SGL: 533400, MFJ: 600050, MFS: 300000, HOH: 566700, QSS: 600050};
+  const STD = {SGL: 15750, MFJ: 31500, MFS: 15750, HOH: 23625, QSS: 31500};
+  const NIIT_T = {SGL: 200000, MFJ: 250000, MFS: 125000, HOH: 200000, QSS: 250000};
+  const QBI_T = {SGL: 197300, MFJ: 394600, MFS: 197300, HOH: 197300, QSS: 394600};
+  const SS_BASE = 176100;
+
+  const fsSel = document.getElementById('utFs');
+  const guess = s => { s = String(s || '').toUpperCase();
+    return /MFJ|JOINT/.test(s) ? 'MFJ' : /MFS|SEPARAT/.test(s) ? 'MFS' : /HOH|HEAD/.test(s) ? 'HOH' : /QSS|QW|SURVIV|WIDOW/.test(s) ? 'QSS' : 'SGL'; };
+  fsSel.value = SAVED._fs || guess(PYFS);
+
+  const tb = document.getElementById('utTable');
+  const MK = window.MARKS || {};
+  tb.innerHTML = F.map(([id, l, k]) => `<tr class="${BOLD.has(id) ? 'utb' : ''}"><td><span class="rowck"><input type="checkbox" data-mk="ut|${id}" title="Reviewed" ${MK['ut|' + id] ? 'checked' : ''}></span>${l}</td><td class="n">
+    <input class="utamt utin ${k === 'c' ? 'auto' : ''}" data-ut="${id}" data-kind="${k}"></td></tr>`).join('');
+  const f0 = x => Number(x).toLocaleString('en-US', {maximumFractionDigits: 0});
+  const box = id => tb.querySelector(`input[data-ut="${id}"]`);
+  Object.entries(SAVED).forEach(([k, v]) => { const el = box(k); if (el && v !== '' && v !== null) { el.value = f0(num(v)); el.dataset.manual = '1'; } });
+  tb.querySelectorAll('input[data-kind="c"]').forEach(el => el.classList.toggle('manual', el.dataset.manual === '1'));
+
+  function taxOn(x, fs) {               // ordinary brackets
+    let t = 0, lo = 0; const b = BR[fs];
+    for (let i = 0; i < RATES.length; i++) { const hi = i < b.length ? b[i] : Infinity; if (x > lo) t += (Math.min(x, hi) - lo) * RATES[i]; lo = hi; }
+    return t;
+  }
+  function regularTax(taxable, pref, fs) {   // Qualified Dividends and Capital Gain Tax Worksheet
+    pref = Math.max(0, Math.min(pref, taxable));
+    const ord = taxable - pref;
+    const at0 = Math.max(0, Math.min(taxable, CG0[fs]) - ord);
+    const at15 = Math.max(0, Math.min(taxable, CG15[fs]) - Math.max(ord, CG0[fs]));
+    const p15 = Math.min(pref - at0, at15), p20 = Math.max(0, pref - at0 - p15);
+    return Math.min(taxOn(ord, fs) + 0.15 * p15 + 0.20 * p20, taxOn(taxable, fs));
+  }
+
+  let LAST = {};
+  window.utUpdate = function (T) {
+    LAST = T || LAST;
+    const S = k => LAST[k] || 0, fs = fsSel.value;
+    const v = {}, get = id => { const el = box(id); return el.dataset.manual === '1' || el.dataset.kind === 'i' ? val(el) : null; };
+    const put = (id, x) => { const m = get(id); v[id] = m !== null ? m : (box(id).dataset.kind === 'i' ? 0 : x); };
+    put('wages', S('w2')); put('interest', S('interest')); put('ordDiv', S('dividends')); put('qualDiv', QD);
+    put('schC', S('schc')); put('capGain', S('st') + S('lt')); put('schE', S('rental') + S('k1')); put('schF', 0);
+    put('totalIncome', v.wages + v.interest + v.ordDiv + v.schC + v.capGain + v.schE + v.schF
+        + S('ira') + S('pension') + 0.85 * S('ss') + S('other'));
+    const seBase = v.schC * 0.9235;
+    const seCalc = seBase < 400 ? 0 : 0.124 * Math.min(seBase, Math.max(0, SS_BASE - v.wages)) + 0.029 * seBase;
+    put('seTax', seCalc);
+    put('iraDed', 0);
+    put('totalDed', v.iraDed + v.seTax / 2);
+    put('agi', v.totalIncome - v.totalDed);
+    put('itemized', 0); put('standard', STD[fs]);
+    const ded = Math.max(v.itemized, v.standard);
+    const netCG = Math.max(0, Math.min(S('lt'), S('st') + S('lt')));
+    const before = Math.max(0, v.agi - ded);
+    const qbiCalc = Math.max(0, Math.min(0.2 * Math.max(0, v.schC - v.seTax / 2), 0.2 * Math.max(0, before - netCG - v.qualDiv)));
+    put('qbi', qbiCalc);
+    box('qbi').title = before > QBI_T[fs] ? 'Above the QBI threshold — W-2 wage / UBIA / SSTB limits not applied' : '';
+    put('taxable', Math.max(0, before - v.qbi));
+    put('regTax', regularTax(v.taxable, v.qualDiv + netCG, fs));
+    put('taxBefore', v.regTax);
+    put('depCare', 0); put('edu', 0); put('ctc', 0);
+    put('totalCredits', Math.min(v.taxBefore, v.depCare + v.edu + v.ctc));
+    const nii = Math.max(0, v.interest + v.ordDiv + Math.max(v.capGain, -3000) + S('rental'));
+    put('niit', 0.038 * Math.min(nii, Math.max(0, v.agi - NIIT_T[fs])));
+    put('totalTax', Math.max(0, v.taxBefore - v.totalCredits) + v.seTax + v.niit);
+    put('withheld', S('fit')); put('estPaid', 0); put('refundable', 0);
+    const paid = v.withheld + v.estPaid + v.refundable;
+    put('overpay', Math.max(0, paid - v.totalTax));
+    put('applied', 0);
+    put('refunded', Math.max(0, v.overpay - v.applied));
+    put('nextEst', 0);
+    put('balance', Math.max(0, v.totalTax - paid));
+    F.forEach(([id, , k]) => {
+      const el = box(id);
+      if (k === 'c' && el.dataset.manual !== '1' && document.activeElement !== el) el.value = Math.abs(v[id]) < 0.5 ? '' : f0(Math.round(v[id]));
+    });
+  };
+
+  let utT;
+  const saveUt = () => { clearTimeout(utT); utT = setTimeout(() => {
+    const o = {_fs: fsSel.value};
+    tb.querySelectorAll('input.utin').forEach(el => { if ((el.dataset.kind === 'i' || el.dataset.manual === '1') && el.value.trim() !== '') o[el.dataset.ut] = num(el.value); });
+    fetch('/ut/{{ token }}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(o)});
+  }, 500); };
+  tb.addEventListener('input', e => {
+    const el = e.target; if (!el.classList.contains('utin')) return;
+    if (el.dataset.kind === 'c') { el.dataset.manual = el.value.trim() === '' ? '0' : '1'; el.classList.toggle('manual', el.dataset.manual === '1'); }
+    utUpdate(); saveUt();
+  });
+  tb.addEventListener('focusout', e => { const el = e.target; if (!el.classList.contains('utin')) return;
+    if (el.value.trim() !== '') el.value = f0(num(el.value)); utUpdate(); });
+  fsSel.addEventListener('change', () => { utUpdate(); saveUt(); });
+  recalc(false);
+});
+</script>

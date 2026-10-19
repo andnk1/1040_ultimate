@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1040 Ultimate · Verify return</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% macro money(v) -%}{%- if v is none -%}{%- else -%}{{ "{:,.0f}".format(v) }}{%- endif -%}{%- endmacro %}
+{% macro tick(k) -%}<input type="checkbox" data-mk="{{ k }}" title="Reviewed" {{ 'checked' if r.marks.get(k) }}>{%- endmacro %}
+{% macro cmt(k) -%}<input class="txt mkn" data-mk="{{ k }}" value="{{ r.marks.get('n|' ~ k, '') }}" placeholder="Comment">{%- endmacro %}
+{% set ST = {'ok': ('yes', 'Ties'), 'diff': ('no', 'Difference'), 'missing': ('no', 'Not on return'), 'return only': ('new', 'Return only'),
+             'both': ('yes', 'Both years'), 'new': ('new', 'New this year'), 'changed': ('no', 'Changed'), 'check': ('new', 'Check'),
+             'no 8949': ('no', 'No 8949'), 'found': ('yes', 'Found'), 'not found': ('new', 'Not found')} %}
+{% macro pill(s) -%}{% set p = ST.get(s, ('new', s)) %}<span class="pill {{ p[0] }}">{{ p[1] }}</span>{%- endmacro %}
+<div class="wrap">
+  <h1>Verify return</h1>
+  <p class="subtitle">With the UltraTax input screens: every line on screen 1 against what was entered in UT. Without them: the finished 2025 return against screen 1. Then your checklist.</p>
+
+  <div class="tabs noprint">
+    <a href="/summary/{{ token }}">1 · Summary</a>
+    <a class="on" href="/verify/{{ token }}">2 · Verify return</a>
+    <a href="/mask/{{ token }}">3 · Mask for AI (if needed)</a>
+    <a class="soon" href="/ai/{{ token }}">4 · AI review</a>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">What to check <span class="sub">UltraTax input screens → line-by-line check · 2025 return only → the return-based check</span></div>
+    <div class="cardbody">
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      {% if ut_error %}<div class="error">{{ ut_error }}</div>{% endif %}
+      <div class="field filef"><label>UltraTax input screens (PDF)</label>
+        <div class="pick"><input id="ut" value="{{ ut_path }}" placeholder="C:\…\input screens.pdf">
+          <button type="button" class="light small pickbtn" onclick="pick('ut')">Browse…</button></div></div>
+      <div class="field filef"><label>2025 return (PDF) — optional with the input screens</label>
+        <div class="pick"><input id="cy" value="{{ cy_path }}" placeholder="C:\…\2025 return.pdf">
+          <button type="button" class="light small pickbtn" onclick="pick('cy')">Browse…</button></div></div>
+      <div class="field filef"><button type="button" onclick="runCheck()" id="go">Check</button>
+        <p class="hint"><span id="pickMsg"></span> <span id="wait" class="hidden">Reading…</span></p></div>
+      {% if r.ut_scr %}<p class="note">Input screens: <b>{{ r.ut_scr.file }}</b> · {{ r.ut_scr.pages }} pages · {{ r.ut_scr.entries|length }} income entries ·
+        {{ r.ut_scr.payments|length }} payments.</p>{% endif %}
+      {% if r.cy_ret %}<p class="note">Return: <b>{{ r.cy_ret.file }}</b> · {{ r.cy_ret.pages }} pages · filing status {{ r.cy_ret.filing_status or '?' }}.</p>{% endif %}
+      {% if r.ut_scr or r.cy_ret %}<p class="note">Amounts on screen 1 count as they are now (per preparer: what the program read, what you changed, every line you added)
+        — change them there and come back.</p>{% endif %}
+    </div>
+  </div>
+
+  {% if ut %}
+  {% set UTS = {'ok': ('yes', 'Ties'), 'red': ('no', 'Data entry'), 'amber': ('new', 'Changed by you'), 'note': ('new', 'Note')} %}
+  <div class="tiles">
+    <div class="tile {{ 'r' if ut.n_red else 'g' }}"><div class="n">{{ ut.n_red }}</div><div class="l">Data-entry differences</div></div>
+    <div class="tile {{ 'a' if ut.n_amber else 'g' }}"><div class="n">{{ ut.n_amber }}</div><div class="l">Changed from the document</div></div>
+    <div class="tile {{ 'a' if ut.n_nocomment else 'g' }}"><div class="n">{{ ut.n_nocomment }}</div><div class="l">Changed — no comment</div></div>
+    <div class="tile {{ 'r' if ut.back else 'g' }}"><div class="n">{{ ut.back|length }}</div><div class="l">UT entries, no document</div></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">1 · Document verification <span class="sub">every box read from the documents (and every line you typed) vs the UltraTax entry — line by line, within $1 · red = data entry · yellow = you changed the document amount</span></div>
+    <div class="cardbody"><table class="v dv">
+      <tr><th class="ck">✓</th><th>Group</th><th>Document</th><th>Box / line</th><th class="n">Per document</th><th class="n">Per preparer</th><th class="n">Per UT</th><th>UT screen</th><th>Status</th><th>Comment</th></tr>
+      {% for x in ut.lines %}{% set k = 'v|' ~ x.key %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status == 'red' else 'ambrow' if x.status == 'amber' }}" data-mk="{{ k }}">
+        <td class="ck">{{ tick(k) }}</td>
+        <td class="note">{{ x.group }}</td><td>{{ x.doc }}{% if x.inv %} <span class="note">(inventory)</span>{% elif x.added %} <span class="note">(added)</span>{% endif %}</td>
+        <td>{{ x.box }}</td>
+        <td class="n">{{ money(x.per_doc) }}</td><td class="n{{ ' mine' if x.changed or (x.per_doc is none and x.added) }}">{{ money(x.per_prep) }}</td>
+        <td class="n">{{ money(x.ut) }}</td>
+        <td class="note">{{ x.ut_ref }}{% if x.ut_note %}<div class="{{ 'flag' if x.wrong or x.status == 'red' else '' }}">{{ x.ut_note }}</div>{% endif %}</td>
+        <td>{% set p = UTS[x.status] %}<span class="pill {{ p[0] }}">{{ p[1] if x.entry != 'asset module' else 'Asset module' }}</span>{% if x.entry not in ['ok', 'note', 'asset module'] %}<div class="note">{{ x.entry }}</div>{% endif %}
+          {% if x.no_comment %}<div class="note flag">no comment on screen 1</div>{% endif %}</td>
+        <td>{% if x.note %}<div class="note">{{ x.note }}</div>{% endif %}{{ cmt(k) }}</td></tr>{% endfor %}
+      {% if not ut.lines %}<tr><td colspan="10" class="note">Nothing to verify — no amounts on screen 1.</td></tr>{% endif %}
+    </table>
+    <p class="note">UltraTax rounds each entry to whole dollars — within $1 ties. One document amount entered in UT in pieces (or one UT entry for several
+      document lines, like §1256 60% / 40%) ties when the pieces add up. Totals and net amounts are not checked — UT calculates them.
+      ✓ = reviewed; type a comment on any line — both are kept with the work in progress and go into the Save review Excel.</p></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">2 · UltraTax entries with no document <span class="sub">entered in UT, nothing on screen 1 behind them</span></div>
+    <div class="cardbody">{% if ut.back %}<table class="v">
+      <tr><th class="ck">✓</th><th>UT screen</th><th>Entry</th><th>What</th><th class="n">Amount</th><th>Page</th><th>Comment</th></tr>
+      {% for x in ut.back %}{% set k = 'v|' ~ x.key %}<tr class="mk{{ ' done' if r.marks.get(k) else ' badrow' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td>
+        <td>{{ x.screen }}</td><td>{{ x.label }}</td><td class="note">{{ x.what }}</td><td class="n">{{ money(x.amount) }}</td><td>{{ x.page }}</td><td>{{ cmt(k) }}</td></tr>{% endfor %}
+    </table>{% else %}<p class="note">None — every UT entry has a document line behind it.</p>{% endif %}</div>
+  </div>
+
+  {% if ut.payments %}
+  <div class="card">
+    <div class="cardhead">Payments on the input screens <span class="sub">for your review — not matched to documents</span></div>
+    <div class="cardbody"><table class="v">
+      <tr><th class="ck">✓</th><th>Screen</th><th>Kind</th><th>Line</th><th class="n">Amount</th><th>Page</th></tr>
+      {% for x in ut.payments %}{% set k = 'pay|' ~ x.screen ~ '|' ~ x.page ~ '|' ~ x.label ~ '|' ~ x.amount %}<tr class="mk{{ ' done' if r.marks.get(k) }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.screen }}</td><td>{{ x.kind }}</td><td>{{ x.label }}</td><td class="n">{{ money(x.amount) }}</td><td>{{ x.page }}</td></tr>{% endfor %}
+    </table></div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if checks and not ut %}
+  {% set bad = checks.cats|selectattr('status', 'in', ['diff', 'missing'])|list|length + checks.schd|selectattr('status', 'in', ['diff', 'missing'])|list|length
+               + checks.boxes|selectattr('status', 'in', ['diff', 'no 8949'])|list|length %}
+  <div class="tiles">
+    <div class="tile {{ 'r' if bad else 'g' }}"><div class="n">{{ bad }}</div><div class="l">Differences</div></div>
+    <div class="tile g"><div class="n">{{ checks.cats|selectattr('status', 'equalto', 'ok')|list|length }}</div><div class="l">Categories tie</div></div>
+    <div class="tile a"><div class="n">{{ checks.forms|selectattr('status', 'equalto', 'missing')|list|length }}</div><div class="l">Forms not filed this year</div></div>
+    <div class="tile b"><div class="n">{{ checks.forms|selectattr('status', 'equalto', 'new')|list|length }}</div><div class="l">New forms</div></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">1 · Income by category <span class="sub">screen 1 totals vs the return</span></div>
+    <div class="cardbody"><table class="v">
+      <tr><th class="ck">✓</th><th>Category</th><th>Return line</th><th class="n">Documents</th><th class="n">Return</th><th class="n">Difference</th><th>Status</th></tr>
+      {% for x in checks.cats %}{% set k = 'rc|' ~ x.cat %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status in ['diff','missing'] }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.cat }}</td><td class="note">{{ x.line }}</td>
+        <td class="n">{{ money(x.docs) }}</td><td class="n">{{ money(x.ret) }}</td><td class="n">{{ money(x.diff) }}</td><td>{{ pill(x.status) }}</td></tr>{% endfor %}
+      {% for x in checks.status %}{% set k = 'rs|' ~ x.item %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status in ['diff','changed'] }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.item }}</td><td class="note">2024: {{ x.py if x.py is not none else '' }}</td>
+        <td class="n">{{ money(x.docs) if x.docs is defined and x.docs is number }}</td><td class="n">{{ money(x.cy) if x.cy is number else x.cy }}</td><td></td><td>{{ pill(x.status) if x.status }}</td></tr>{% endfor %}
+    </table>
+    <p class="note">Ties = within rounding (UltraTax rounds each entry to whole dollars). "Return only" = on the return, no document read for it on screen 1.</p></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">2 · Capital gains — Schedule D by Form 8949 box</div>
+    <div class="cardbody">
+      <table class="v">
+        <tr><th class="ck">✓</th><th>Schedule D line</th><th>Documents (screen 1 rows)</th><th class="n">Documents</th><th class="n">Return</th><th class="n">Difference</th><th>Status</th></tr>
+        {% for x in checks.schd %}{% set k = 'rd|' ~ x.line %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status in ['diff','missing'] }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.line }}</td><td class="note">{{ x.rows|join('; ') }}</td>
+          <td class="n">{{ money(x.docs) }}</td><td class="n">{{ money(x.ret) }}</td><td class="n">{{ money(x.diff) }}</td><td>{{ pill(x.status) }}</td></tr>{% endfor %}
+        {% if not checks.schd %}<tr><td class="note" colspan="6">No capital gains on the documents or the return.</td></tr>{% endif %}
+      </table>
+      <div class="sublabel">Form 8949 boxes</div>
+      <table class="v">
+        <tr><th class="ck">✓</th><th>Form 8949 page / documents</th><th>Box</th><th class="n">Page total (h)</th><th>Note</th><th>Status</th></tr>
+        {% for x in checks.boxes %}{% set k = 'rb|' ~ x.box ~ '|' ~ (x.page or '') %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status in ['diff','no 8949'] }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td>
+          <td>{% if x.page %}Return page {{ x.page }}{% else %}<span class="note">{{ x.docs|join('; ') }}</span>{% endif %}</td>
+          <td class="b">{{ x.box }}</td><td class="n">{{ money(x.total) if x.total is defined }}</td><td class="note">{{ x.note or '' }}</td>
+          <td>{{ pill(x.status) if x.status }}</td></tr>{% endfor %}
+        {% if not checks.boxes %}<tr><td class="note" colspan="5">No Form 8949 on the return.</td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  {% endif %}
+  {% if checks %}
+  <div class="grid3">
+  <div class="card">
+    <div class="cardhead">{{ '4' if ut else '3' }} · Forms filed <span class="sub">2024 vs 2025</span></div>
+    <div class="cardbody"><table class="v">
+      {% for x in checks.forms|sort(attribute='status', reverse=True) %}{% set k = 'form|' ~ x.form %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status == 'missing' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.form|replace('Form ', '')|replace('Schedule ', 'Sch ') }}</td>
+        <td class="note">{{ x.short }}</td><td>{{ pill(x.status) }}</td></tr>{% endfor %}
+    </table><p class="note">Not filed this year = on the 2024 return, not on 2025 — confirm it's really gone (carryover, sold, closed).</p></div>
+  </div>
+  <div class="card">
+    <div class="cardhead">Payers / K-1 entities <span class="sub">2024 vs 2025</span></div>
+    <div class="cardbody">{% if checks.payers %}<table class="v">
+      {% for x in checks.payers|sort(attribute='status', reverse=True) %}{% set k = 'payer|' ~ x.kind ~ '|' ~ x.name %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status == 'missing' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.kind }}</td><td>{{ x.name }}</td><td>{{ pill(x.status) }}</td></tr>{% endfor %}
+    </table>{% else %}<p class="note">No payers listed on either return (Schedule B, wages report, K-1 worksheets).</p>{% endif %}</div>
+  </div>
+  {% if not ut %}<div class="card">
+    <div class="cardhead">Each document on the return</div>
+    <div class="cardbody"><table class="v">
+      {% for x in checks.perdoc %}{% set k = 'rp|' ~ x.doc %}<tr class="mk{{ ' done' if r.marks.get(k) }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.doc }}<div class="note">{{ money(x.amount) }}{% if x.source != 'read by program' %} · <b class="mine">{{ x.source }}</b>{% endif %}</div>
+        {% if x.change %}<div class="note mine">{{ x.change }}</div>{% endif %}</td>
+        <td>{% if x.found %}<span class="pill yes">p. {{ x.pages|join(', ') }}</span>{% else %}<span class="pill new">Not found</span>{% endif %}</td></tr>{% endfor %}
+    </table><p class="note">The rounded amount printed anywhere on the return (statements, 8949, schedules). "Not found" isn't an error by itself — it may be combined with others.</p></div>
+  </div>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if r.comments.client %}
+  <div class="banner">Client comments: <span style="font-weight:400;white-space:pre-wrap">{{ r.comments.client }}</span></div>
+  {% endif %}
+  {% if checks and checks.sche %}
+  <div class="card">
+    <div class="cardhead">Schedule E — each property, each line <span class="sub">Schedule E box vs Schedule E page 1 of the 2025 return</span></div>
+    <div class="cardbody"><table class="v">
+      <tr><th class="ck">✓</th><th>Property (box)</th><th>On the return</th><th>Line</th><th class="n">Box</th><th class="n">Return</th><th class="n">Difference</th><th>Status</th></tr>
+      {% for x in checks.sche %}{% set k = 're|' ~ x.prop ~ '|' ~ x.line %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status != 'ok' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.prop }}</td><td class="note">{{ x.ret_prop }}</td>
+        <td>{{ x.line }} {{ x.label }}</td><td class="n">{{ money(x.box) }}</td><td class="n">{{ money(x.ret) }}</td><td class="n">{{ money(x.diff) }}</td>
+        <td>{{ pill('ok' if x.status == 'ok' else ('return only' if x.status == 'return only' else ('missing' if x.status == 'missing' else 'diff'))) }}</td></tr>{% endfor %}
+    </table><p class="note">Properties are matched by address (or by the rents when the address differs). Within $1 ties.</p></div>
+  </div>
+  {% endif %}
+
+  {% set memo_ut = [] %}{% set memo_ret = checks.memo if checks else [] %}
+  {% if memo_ut or memo_ret %}
+  <div class="card">
+    <div class="cardhead">1095-A / 1098-T <span class="sub">not income — checked on their own</span></div>
+    <div class="cardbody"><table class="v">
+      <tr><th class="ck">✓</th><th>Form</th><th>Document</th><th>What</th><th class="n">Amount</th>{% if memo_ut %}<th class="n">Per UT</th><th>UT screen</th>{% endif %}{% if memo_ret %}<th>On the return</th>{% endif %}<th>Status</th></tr>
+      {% for x in (memo_ut or memo_ret) %}{% set rx = memo_ret[loop.index0] if memo_ret and memo_ut else (x if memo_ret else none) %}
+      {% set st = x.status %}
+      {% set k = 'rm|' ~ x.doc ~ '|' ~ x.what %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if st not in ['ok', 'found'] or (rx and rx.status != 'found') }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.form }}</td><td>{{ x.doc }}</td><td>{{ x.what }}</td><td class="n">{{ money(x.amount) }}</td>
+        {% if memo_ut %}<td class="n">{{ money(x.ut) }}</td><td class="note">{{ x.ut_ref }}</td>{% endif %}
+        {% if memo_ret %}<td class="note">{{ rx.where }} · {{ rx.note }}</td>{% endif %}
+        <td>{{ pill('ok' if st in ['ok', 'found'] else ('missing' if st in ['no form', 'not entered', 'not found'] else 'check')) }}
+          {% if rx and memo_ut and rx.status != 'found' %}<div class="note">return: {{ rx.status }}</div>{% endif %}
+          {% if st not in ['ok', 'found'] %}<div class="note">{{ st }}</div>{% endif %}</td></tr>
+      {% endfor %}
+    </table><p class="note">1095-A: line 33 column C (advance premium tax credit) → Form 8962 line 25. 1098-T: box 1 / box 5 → Form 8863. UT rounds to whole dollars.</p></div>
+  </div>
+  {% endif %}
+
+  {# ------------------------------------------------ checklist #}
+  <div class="card">
+    <div class="cardhead">Checklist <span class="sub">tick as you go · + adds a line · Stays Y = on the master list for every client, N = this return only</span></div>
+    <div class="cardbody">
+      <table class="v" id="clTable"></table>
+      <div class="bar noprint">
+        <button type="button" class="alt small" onclick="addItem()">+ Add a line</button>
+        <span id="clMsg" class="note"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar noprint">
+    <a class="btn alt" href="/summary/{{ token }}">← Summary</a>
+    <button type="button" class="pickbtn" onclick="saveReview()">Save review (Excel)…</button>
+    <span id="saveMsg" class="note"></span>
+    <a class="btn alt" href="/mask/{{ token }}">Mask for AI (if needed) →</a>
+  </div>
+  <p class="disclaimer">Internal preparer aid. Contains client data — internal use only. Federal only.</p>
+</div>
+<script src="{{ url_for('static', filename='browse.js') }}"></script>
+<script>
+const TOKEN = {{ token|tojson }};
+let CL = {{ checklist|safe }};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function pick(id) { const el = document.getElementById(id); const j = await browse('file', el.value ? el.value.replace(/[\\/][^\\/]*$/, '') : ''); if (j.path) el.value = j.path; }
+async function runCheck() {
+  document.getElementById('go').disabled = true; document.getElementById('wait').classList.remove('hidden');
+  try {
+    await fetch(`/verify/${TOKEN}/run`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: document.getElementById('cy').value, ut: document.getElementById('ut').value})});
+    location.reload();
+  } finally { document.getElementById('go').disabled = false; }
+}
+// ---------- checklist
+function drawCL() {
+  document.getElementById('clTable').innerHTML = '<tr><th class="ck">✓</th><th>Item</th><th>Stays</th><th>Note</th></tr>' +
+    CL.map((x, i) => `<tr class="mk${x.done ? ' done' : ''}"><td class="ck"><input type="checkbox" data-i="${i}" class="cldone" ${x.done ? 'checked' : ''}></td>
+      <td>${x.master ? esc(x.text) : `<input class="txt cltext" data-i="${i}" value="${esc(x.text)}" placeholder="New item">`}</td>
+      <td><select class="clstays" data-i="${i}"><option value="Y" ${x.stays ? 'selected' : ''}>Y</option><option value="N" ${!x.stays ? 'selected' : ''}>N</option></select></td>
+      <td><input class="txt clnote" data-i="${i}" value="${esc(x.note || '')}" placeholder="Note"></td></tr>`).join('');
+}
+let clT;
+function saveCL(now) {
+  clearTimeout(clT);
+  const go = () => fetch(`/verify/${TOKEN}/checklist`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(CL)})
+    .then(r => r.json()).then(j => { document.getElementById('clMsg').textContent = `Saved · master list: ${j.master} items`; });
+  if (now) return go(); clT = setTimeout(go, 600);
+}
+function addItem() { CL.push({text: '', done: false, stays: false, master: false, note: ''}); drawCL(); const els = document.querySelectorAll('input.cltext'); if (els.length) els[els.length - 1].focus(); }
+const tb = document.getElementById('clTable');
+tb.addEventListener('change', e => {
+  const el = e.target, i = +el.dataset.i; if (isNaN(i)) return;
+  if (el.classList.contains('cldone')) { CL[i].done = el.checked; el.closest('tr').classList.toggle('done', el.checked); }
+  if (el.classList.contains('clstays')) {
+    const y = el.value === 'Y';
+    if (!y && CL[i].master && !confirm('Remove this line from the master checklist (every client)?')) { el.value = 'Y'; return; }
+    CL[i].stays = y;
+  }
+  saveCL(true).then(() => { CL.forEach(x => { x.master = !!x.stays && !!x.text.trim(); }); });
+});
+tb.addEventListener('input', e => {
+  const el = e.target, i = +el.dataset.i; if (isNaN(i)) return;
+  if (el.classList.contains('cltext')) CL[i].text = el.value;
+  if (el.classList.contains('clnote')) CL[i].note = el.value;
+  saveCL(false);
+});
+async function saveReview() {
+  await saveCL(true);
+  const m = document.getElementById('saveMsg'); m.textContent = 'Choose the folder…';
+  const j = await (await fetch(`/verify/${TOKEN}/save`, {method: 'POST'})).json();
+  m.textContent = j.error ? j.error : j.cancelled ? 'Cancelled.' : 'Saved: ' + j.saved;
+}
+drawCL();
+</script>
+<script src="{{ url_for('static', filename='marks.js') }}"></script>
+</body>
+</html>

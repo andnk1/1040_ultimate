@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1040 Ultimate · Summary</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% macro money(v) -%}
+{%- if v is none -%}
+{%- else -%}{{ "{:,.0f}".format(v) }}
+{%- endif -%}
+{%- endmacro %}
+{% set py = r.py %}{% set inv = r.inv %}
+<div class="wrap">
+  <h1>{{ 'Create summary' if r.mode == 'summary' else 'Verify return' }}</h1>
+  <p class="subtitle">{{ inc.py_year }}: category totals from the prior-year 1040 (comparison only) · {{ inc.cy_year }}: read from each document.</p>
+
+  <div class="tabs noprint">
+    <a class="on" href="/summary/{{ token }}">1 · Summary</a>
+    <a class="" href="/verify/{{ token }}">2 · Verify return</a>
+    <a class="" href="/mask/{{ token }}">3 · Mask for AI (if needed)</a>
+    <a class=" soon" href="/ai/{{ token }}">4 · AI review</a>
+  </div>
+
+  <div class="banner">
+    {% if r.form.pyret %}Prior-year return: {{ r.form.pyret.split('\\')[-1].split('/')[-1] }} — {{ py.year or 'year not found' }} · {{ py.software }} · {{ py.pages }} pages
+    {% else %}No prior-year return — tax year {{ (py.year or 0) + 1 }} (from the documents){% endif %}<br>
+    Documents: {{ inv.docs|length }} selected{% if inv.missing %} · <span class="flag">{{ inv.missing|length }} not found</span>{% endif %}<br>
+    <span id="wipLine">{% if r.wip_path %}Work in progress: {{ r.wip_path.split('\\')[-1].split('/')[-1] }} — saved automatically{% if r.wip_loaded %} · continued from {{ r.wip_loaded }}{% endif %}{% if r.wip_error %} · <span class="flag">{{ r.wip_error }}</span>{% endif %}
+    {% else %}<span class="flag">Work in progress isn't being saved</span> (no Karbon letter or prior-year return to save it next to)
+      <button type="button" class="light small pickbtn noprint" onclick="wipFolder()">Choose a folder…</button>{% endif %}</span>
+    {% if r.moved %}<br><span class="flag">Moved files:</span> {{ r.moved|join('; ') }}{% endif %}
+    {% if r.stuck %}<br><span class="flag">Not read:</span> {{ r.stuck|join('; ') }}{% endif %}
+  </div>
+
+  {% include "inventory.html" %}
+
+  {# ------------------------------------------------ Schedule C (top) #}
+  <details class="card" id="schc">
+    <summary class="cardhead"><span><span class="arrow">▶</span>Schedule C — enter this year's amounts</span>
+      <span class="sub">{{ r.schc_py|length }} business{{ 'es' if r.schc_py|length != 1 }} on last year's return</span></summary>
+    <div class="cardbody">
+      <p class="note">One business at a time — pick it above the form. <b>Add P&amp;L</b> (CSV, Excel or PDF) maps each account to a Schedule C line
+        (change the line in the dropdown); the Schedule C fills in as you pick. Blue amounts come from the P&amp;L, grey ones are last year's;
+        anything you type shows in green — clear it to go back. Lines 3, 5, 7, 28, 29 and 31 add up by themselves.
+        <b>Enter total only</b> (bottom of the form) = just the net profit / (loss) when there's no line detail — not checked against the UT screens.
+        Click <b>Calculate</b> to move line 31 of every business into the income summary.</p>
+      <div id="bizPick" class="bizpick noprint"></div>
+      <div id="schcBox"></div>
+      <div class="bar noprint">
+        <button type="button" onclick="calculateSchC()">Calculate</button> <span id="calcMsg" class="note"></span>
+      </div>
+    </div>
+  </details>
+
+  {# ------------------------------------------------ Schedule E #}
+  <details class="card" id="sche">
+    <summary class="cardhead"><span><span class="arrow">▶</span>Schedule E — rental real estate and royalties</span>
+      <span class="sub">{{ r.sche_py|length }} propert{{ 'ies' if r.sche_py|length != 1 else 'y' }} on last year's return</span></summary>
+    <div class="cardbody">
+      <p class="note">6 properties per tab — more properties go on Schedule E 2, 3 … Line 19 = other expenses, total only.
+        Short address on the Income line. Grey amounts are last year's; anything you type shows in green.
+        Lines 20 and 21 add up by themselves. Line 22 = the loss allowed after Form 8582 (enter it when the loss is limited).
+        Click <b>Calculate</b> to move each property's result into the income summary (Rental &amp; Royalties).</p>
+      <div id="propPick" class="bizpick noprint"></div>
+      <div id="scheBox"></div>
+      <div class="bar noprint">
+        <button type="button" onclick="calculateSchE()">Calculate</button> <span id="calcMsgE" class="note"></span>
+      </div>
+    </div>
+  </details>
+
+  {# ------------------------------------------------ income summary (full width) #}
+  {% macro inp(v, kind, d) -%}
+  <input class="amt cyin" data-kind="{{ kind }}" data-read="{{ ('%.2f' % (d['read_' ~ kind] if d.edited else v)) if (d['read_' ~ kind] if d.edited else v) is not none else '' }}"
+         data-v="{{ '%.2f' % v if v is not none else '' }}" data-shown="{{ '{:,.0f}'.format(v) if v is not none else '' }}"
+         value="{{ '{:,.0f}'.format(v) if v is not none else '' }}">
+  {%- endmacro %}
+  {% macro secrows(sections, fitcol=True) -%}
+        {% for s in sections %}
+        {% set empty = not s.rows and s.py is none and not (s.red|selectattr('amount')|list) %}
+        <tbody class="secblk{{ ' empty' if empty }}" data-blk="{{ s.key }}">
+          {% for d in s.rows %}
+          {% if d.added %}
+          <tr class="docrow added{{ ' invrow' if d.inv }}" data-sec="{{ s.key }}" data-id="{{ d.id }}" data-live="1" data-added="1"{% if d.inv %} data-inv="1"{% endif %}>
+            <td><span class="rowck"><input type="checkbox" data-mk="inc|{{ d.id }}" title="Reviewed" {{ 'checked' if r.marks.get('inc|' ~ d.id) }}></span><input class="txt docin" value="{{ d.doc }}" placeholder="Document / description"{{ ' readonly' if d.inv }}></td><td class="n"></td>
+            <td class="n doccol"></td>
+            <td class="n"><input class="amt cyin" data-kind="cy" data-read="" data-v="{{ '%.2f' % d.cy if d.cy is not none else '' }}" data-shown="{{ '{:,.0f}'.format(d.cy) if d.cy is not none else '' }}" value="{{ '{:,.0f}'.format(d.cy) if d.cy is not none else '' }}"{{ ' readonly' if d.inv }}></td>
+            {% if fitcol %}<td class="n">{% if not d.inv %}<input class="amt cyin" data-kind="fit" data-read="" data-v="{{ '%.2f' % d.fit if d.fit is not none else '' }}" data-shown="{{ '{:,.0f}'.format(d.fit) if d.fit is not none else '' }}" value="{{ '{:,.0f}'.format(d.fit) if d.fit is not none else '' }}">{% endif %}</td>{% endif %}
+            <td class="note">{% if d.inv %}<input class="txt notein invnote" data-invid="{{ d.id }}" value="{{ d.note }}" placeholder="Comment (same as the inventory note)" title="From the document inventory — the amount is changed there; this comment is the inventory note">{% else %}<input class="txt notein" value="{{ d.note }}" placeholder="Comment">{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr class="docrow {{ 'exrow' if d.excluded }}{{ ' memo' if d.memo }}{{ ' st-' ~ d.status }}" data-sec="{{ s.key }}" data-id="{{ d.id }}"
+              data-live="{{ 0 if (d.excluded or d.memo) else 1 }}">
+            <td><span class="rowck"><input type="checkbox" data-mk="inc|{{ d.id }}" title="Reviewed" {{ 'checked' if r.marks.get('inc|' ~ d.id) }}></span>{% if d.sche is defined %}<span data-schename="{{ d.sche }}">{{ d.doc }}</span>{% elif d.schc is defined %}<span data-schcname="{{ d.schc }}">{{ d.doc }}</span>{% else %}{{ d.doc }}{% endif %}</td>
+            <td class="n"></td>
+            <td class="n doccol">{{ money(d.doc_cy) }}</td>
+            <td class="n"{% if d.sche is defined %} data-sche="{{ d.sche }}"{% elif d.schc is defined %} data-schc="{{ d.schc }}"{% endif %}>{% if d.excluded %}{% else %}{{ inp(d.cy, 'cy', d) }}{% endif %}</td>
+            {% if fitcol %}<td class="n">{% if not d.excluded and d.schc is not defined %}{{ inp(d.fit, 'fit', d) }}{% endif %}</td>{% endif %}
+            <td class="note"><textarea class="noteed{{ ' edited' if d.note_edited }}" rows="1" data-orig="{{ d.read_note if d.note_edited else d.note }}">{{ d.note }}</textarea></td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+          {% for x in s.red %}{% set blue = 'minus losses' in x.label|lower %}<tr class="docrow red{{ ' bluerow' if blue }}" data-redsec="{{ s.key }}" data-sec="{{ s.key }}" data-id="{{ x.id }}" data-live="1" data-red="1">
+            <td class="redrow"><span class="rowck"><input type="checkbox" data-mk="inc|{{ x.id }}" title="Reviewed" {{ 'checked' if r.marks.get('inc|' ~ x.id) }}></span>{{ x.label }}</td><td></td><td class="doccol"></td>
+            <td class="n"><input class="amt cyin redin{{ ' edited' if x.amount is not none }}" data-kind="cy" data-read="" data-v="{{ '%.2f' % x.amount if x.amount is not none else '' }}" data-shown="{{ '{:,.0f}'.format(x.amount) if x.amount is not none else '' }}" value="{{ '{:,.0f}'.format(x.amount) if x.amount is not none else '' }}" placeholder="0"></td>
+            {% if fitcol %}<td></td>{% endif %}
+            <td class="note"><textarea class="noteed redrow{{ ' edited' if x.note != x.orig_note }}" rows="1" data-orig="{{ x.orig_note }}">{{ x.note }}</textarea></td></tr>{% endfor %}
+          <tr class="tot" data-tot="{{ s.key }}"><td><span class="rowck"><input type="checkbox" data-mk="inctot|{{ s.key }}" title="Reviewed" {{ 'checked' if r.marks.get('inctot|' ~ s.key) }}></span><button type="button" class="plus noprint" title="Add a line to {{ s.label }}" onclick="addLine('{{ s.key }}')">+</button>{{ s.label }}</td><td class="n">{{ money(s.py) }}</td>
+            <td class="n doccol">{{ money(s.doc_cy) }}</td><td class="n cyt">{{ money(s.cy) }}</td>
+            {% if fitcol %}<td class="n fitt">{{ money(s.fit) }}</td>{% endif %}
+            <td class="note">{{ s.note }}</td></tr>
+        </tbody>
+        <tbody class="gap"><tr><td colspan="{{ 6 if fitcol else 5 }}"></td></tr></tbody>
+        {% endfor %}
+  {%- endmacro %}
+  <div class="incwrap">
+  <div class="inccol">
+  <div class="card" id="incCard">
+    <div class="cardhead">Income summary <span class="sub">{{ inc.py_year }} from the 1040 (comparison) · per document = as read by the program (fixed) · per preparer = what goes on the return (yours to change)</span></div>
+    <div class="cardbody">
+      <table class="v inc" id="incTable">
+        <thead><tr><th>Document/s</th><th class="n">{{ inc.py_year or 'PY' }}</th><th class="n doccol">{{ inc.cy_year or 'CY' }}<br>per document</th>
+            <th class="n">{{ inc.cy_year or 'CY' }}<br>per preparer</th>
+            <th class="n">Fed. w/h</th><th>Comments</th></tr></thead>
+        {{ secrows(inc.sections) }}
+        <tbody class="grandblk"><tr class="grand"><td>Total Income</td><td class="n">{{ money(inc.py_total) }}</td><td class="n doccol">{{ money(inc.doc_total) }}</td>
+          <td class="n" id="cyTotal">{{ money(inc.cy_total) }}</td>
+          <td class="n" id="fitTotal">{{ money(inc.cy_fit or none) }}</td><td class="note">{{ inc.total_note }}</td></tr>
+        <tr class="tot"><td>Federal income tax withheld</td><td class="n">{{ money(inc.py_fit) }}</td><td class="doccol"></td><td></td>
+          <td class="n" id="fitTotal2">{{ money(inc.cy_fit or none) }}</td>
+          <td class="note">{{ inc.py_year }}: Form 1040 line 25d · {{ inc.cy_year }}: W-2 box 2, 1099 box 4, SSA-1099 box 6</td></tr></tbody>
+      </table>
+      <div class="bar noprint">
+        <button type="button" onclick="recalc(true)">Recalculate</button>
+        <span id="recalcMsg" class="note"></span>
+      </div>
+      <p class="note"><b>Per document</b> = what the program read (can't be changed). <b>Per preparer</b> starts as a copy — leave it or change it
+        (tax interpretation); a changed or typed amount shows in blue and needs a comment. Rows marked "NOT READ" were not read by the program — enter the amount
+        per preparer. <b>Fed. w/h</b>: grey = as the program read it — type over it to change it (blue). Struck-through rows are excluded documents; italic rows are memo only (not added). <b>+</b> next to a total adds a line.
+        Totals and the UT summary use per preparer and update as you type.</p>
+    </div>
+  </div>
+  <div class="card" id="dedCard">
+    <div class="cardhead">Deduction summary <span class="sub">{{ ded.py_year }} from the return (comparison) · {{ ded.cy_year }} from each document — not in the UT summary</span></div>
+    <div class="cardbody">
+      <table class="v inc" id="dedTable">
+        <thead><tr><th>Document/s</th><th class="n">{{ ded.py_year or 'PY' }}</th><th class="n doccol">{{ ded.cy_year or 'CY' }}<br>per document</th>
+          <th class="n">{{ ded.cy_year or 'CY' }}<br>per preparer</th><th>Comments</th></tr></thead>
+        {{ secrows(ded.sections, False) }}
+        <tbody class="grandblk"><tr class="grand"><td>Total Deductions</td><td class="n">{{ money(ded.py_total) }}</td><td class="n doccol">{{ money(ded.doc_total) }}</td>
+          <td class="n" id="dedTotal">{{ money(ded.cy_total) }}</td><td class="note"></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+  {% include "ut_summary.html" %}
+  </div>
+
+  {# ------------------------------------------------ carryovers (full width, first) #}
+  {% set C = r.carry or {} %}
+  <div class="card">
+    <div class="cardhead">Carryovers from {{ py.year or 'the prior year' }} <span class="sub">to {{ (py.year or 0) + 1 if py.year else 'this year' }}</span></div>
+    <div class="cardbody">
+      {% if C.summary %}
+      <div class="sublabel">Return Carryover Summary (UltraTax)</div>
+      <table class="v">
+        <tr><th class="ck">✓</th><th>Activity / Form</th><th>Unit</th><th>Activity</th><th>Description</th><th class="n">Carryover</th><th>PY page</th></tr>
+        {% for c in C.summary %}{% set mk = 'cs' ~ loop.index0 %}<tr class="mk{{ ' done' if r.marks.get(mk) }}" data-mk="{{ mk }}"><td class="ck"><input type="checkbox" {{ 'checked' if r.marks.get(mk) }}></td><td class="b">{{ c.form }}</td><td>{{ c.unit }}</td><td>{{ c.activity }}</td><td>{{ c.description }}</td>
+          <td class="n">{{ money(c.amount) }}</td><td>{{ c.page }}</td></tr>{% endfor %}
+      </table>
+      <p class="note">AMT lines are shown only when the AMT amount differs from the regular amount.</p>
+      {% else %}<p class="note">No carryover summary page found.</p>{% endif %}
+
+      {% if C.from_forms %}
+      <div class="sublabel">Read from the forms</div>
+      <table class="v">
+        <tr><th class="ck">✓</th><th>Carryover</th><th>Activity</th><th class="n">Amount</th><th>Source</th><th>PY page</th></tr>
+        {% for c in C.from_forms %}{% set mk = 'cf' ~ loop.index0 %}<tr class="mk{{ ' done' if r.marks.get(mk) }}" data-mk="{{ mk }}"><td class="ck"><input type="checkbox" {{ 'checked' if r.marks.get(mk) }}></td><td class="b">{{ c.item }}</td><td>{{ c.activity }}</td><td class="n">{{ money(c.amount) }}</td>
+          <td class="note">{{ c.source }}</td><td>{{ c.page }}</td></tr>{% endfor %}
+      </table>
+      {% endif %}
+
+      {% if C.checks %}
+      <div class="sublabel">Forms in the {{ py.year }} return that may carry something over</div>
+      <table class="v">
+        {% for c in C.checks %}{% set mk = 'cc' ~ loop.index0 %}<tr class="mk{{ ' done' if r.marks.get(mk) }}" data-mk="{{ mk }}"><td class="ck"><input type="checkbox" {{ 'checked' if r.marks.get(mk) }}></td>
+          <td>Check for the <b>{{ c.item }}</b> <span class="note">— {{ c.form }} filed in {{ py.year }} (page {{ c.page }})</span></td></tr>{% endfor %}
+      </table>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ------------------------------------------------ Karbon summary #}
+  <div class="card">
+    <div class="cardhead">Karbon Summary <span class="sub">{% if r.karbon %}{{ r.karbon.file }} · {{ r.karbon.title }}{% endif %}</span></div>
+    <div class="cardbody">
+      {% if not r.karbon %}<p class="note">No Karbon organizer selected.</p>
+      {% elif r.karbon.error %}<p class="note flag">Couldn't read the Karbon organizer: {{ r.karbon.error }}</p>
+      {% elif not r.karbon.shown %}<p class="note">No answers other than "No" ({{ r.karbon.questions|length }} questions).</p>
+      {% else %}
+      <table class="v">
+        <tr><th class="ck">✓</th><th style="width:45%">Question</th><th>Answer</th></tr>
+        {% for q in r.karbon.shown %}{% set mk = 'k' ~ loop.index0 %}<tr class="mk{{ ' done' if r.marks.get(mk) }}" data-mk="{{ mk }}"><td class="ck"><input type="checkbox" {{ 'checked' if r.marks.get(mk) }}></td>
+          <td>{{ q.question }}</td><td class="kans">{{ q.answer }}</td></tr>{% endfor %}
+      </table>
+      <p class="note">{{ r.karbon.shown|length }} of {{ r.karbon.questions|length }} questions answered with something other than "No". Unanswered questions are left out.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid2 recvgrid">
+  <div class="card">
+    {% set notrec = py.expected|rejectattr('received')|list %}
+    <div class="cardhead">On last year's return — not received <span class="sub">{{ notrec|length }} of {{ py.expected|length }}</span></div>
+    <div class="cardbody">
+      {% if notrec %}
+      <table class="v recvt">
+        <tr><th class="ck" title="Verified">✓</th><th>Form</th><th>Payer / entity</th><th>Comment</th></tr>
+        {% for e in notrec %}{% set rk = e.kind ~ '|' ~ e.name %}{% set ok = (r.comments.recv_ok or {}).get(rk) %}
+        <tr class="recvrow{{ ' vok' if ok }}"><td class="ck"><input type="checkbox" class="recvok" data-rk="{{ rk }}" {{ 'checked' if ok }}></td>
+          <td class="b">{{ e.kind }}</td><td>{{ e.name }}{% if e.ein4 %} <span class="note">EIN ***{{ e.ein4 }}</span>{% endif %}<div class="note">PY page {{ e.page }}</div></td>
+          <td><input class="txt recvin" data-rk="{{ rk }}" value="{{ (r.comments.recv or {}).get(rk, '') }}" placeholder="Comment"></td></tr>
+        {% endfor %}
+      </table>
+      {% elif py.expected %}<p class="note">Everything on last year's return was received ({{ py.expected|length }}).</p>
+      {% else %}<p class="note">No payers or K-1 entities found in the prior-year return (names may be masked).</p>{% endif %}
+      <textarea class="cmtbox" id="recvNote" rows="2" placeholder="Note on what's missing / not expected this year">{{ r.comments.recv_note or '' }}</textarea>
+    </div>
+  </div>
+  <div class="card">
+    <div class="cardhead">Forms filed last year</div>
+    <div class="cardbody">
+      {% if py.forms %}<div class="chips">{% for f in py.forms %}{% set fk = 'pyform|' ~ f.form %}<span class="chip mkbox{{ ' done' if r.marks.get(fk) }}" title="{{ f.form }} · PY page {{ f.page }}"><input type="checkbox" data-mk="{{ fk }}" {{ 'checked' if r.marks.get(fk) }}> <b>{{ f.form|replace('Form ', '')|replace('Schedule ', 'Sch ') }}</b>{% if f.short %} {{ f.short }}{% endif %}</span>{% endfor %}</div>
+      {% else %}<p class="note">No IRS form pages found.</p>{% endif %}
+    </div>
+  </div>
+  </div>
+
+  <div class="bar noprint">
+    <a class="btn alt" href="/">← New run</a>
+    <button type="button" class="alt" onclick="window.print()">Print PDF</button>
+    <button type="button" class="alt" onclick="printIncome()">Print income summary</button>
+    <a class="btn alt" href="/income/{{ token }}/excel" onclick="return dlExcel(this)">Income summary (Excel)</a>
+    <a class="btn" href="/verify/{{ token }}">Verify the 2025 return →</a>
+  </div>
+  <p class="disclaimer">Internal preparer aid. Contains client data — internal use only. Federal only.</p>
+</div>
+
+<script>
+const LINES = {{ SCHC|tojson }};
+const MAPL = {{ MAPL|tojson }};
+const TOKEN = {{ token|tojson }};
+window.MARKS = {{ (r.marks or {})|tojson }};
+let BIZ = {{ schc_json|safe }};
+let PROPS = {{ sche_json|safe }};
+const ELINES = {{ SCHE|tojson }};
+
+// whole dollars on screen (the exact amount is kept: data-v; Excel keeps cents)
+const fmt = v => (v === null || v === undefined || v === '' || isNaN(v)) ? '' : Number(v).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+// every typed amount: shown as 1,234.56 once you leave the box
+document.addEventListener('focusout', e => {
+  const el = e.target;
+  if (el.tagName === 'INPUT' && el.classList.contains('amt') && !el.readOnly) {
+    if (el.dataset.shown !== undefined && el.value === el.dataset.shown) return;        // not changed - keep the exact amount
+    if (el.value.trim() === '') { el.dataset.v = ''; el.dataset.shown = ''; return; }
+    const n = num(el.value); if (isNaN(n)) return;
+    el.dataset.v = n; el.value = fmt(n); el.dataset.shown = el.value;
+  }
+});
+document.addEventListener('change', e => {
+  if (!e.target.classList.contains('toai')) return;
+  fetch('/toai/{{ token }}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({[e.target.dataset.path]: e.target.checked})});
+});
+// inventory lines on the income summary: the comment is the inventory note (saved there too)
+let invNT;
+document.addEventListener('input', e => {
+  if (!e.target.classList || !e.target.classList.contains('invnote')) return;
+  const el = e.target; clearTimeout(invNT);
+  invNT = setTimeout(() => {
+    fetch('/invnote/{{ token }}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: el.dataset.invid, note: el.value})});
+    const row = document.querySelector(`#invTable tr.invrow[data-key="${CSS.escape(el.dataset.invid.replace(/^inv\|(free\|)?/, ''))}"] .inote`);
+    if (row) row.value = el.value;
+  }, 500);
+});
+// comments: client comments (inventory), received? comments + note
+let cmtT;
+function saveComments() {
+  clearTimeout(cmtT);
+  cmtT = setTimeout(() => {
+    const recv = {}, recv_ok = {};
+    document.querySelectorAll('input.recvin').forEach(el => { if (el.value.trim()) recv[el.dataset.rk] = el.value; });
+    document.querySelectorAll('input.recvok').forEach(el => { if (el.checked) recv_ok[el.dataset.rk] = true; });
+    const c = document.getElementById('clientCmt'), n = document.getElementById('recvNote');
+    fetch('/comments/{{ token }}', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({client: c ? c.value : '', recv, recv_ok, recv_note: n ? n.value : ''})});
+  }, 300);
+}
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('#clientCmt, #recvNote, input.recvin')) saveComments(); });
+document.addEventListener('change', e => {
+  if (!e.target.matches || !e.target.matches('input.recvok')) return;
+  e.target.closest('tr').classList.toggle('vok', e.target.checked); saveComments();
+});
+async function wipFolder() {
+  const j = await (await fetch('/wip/{{ token }}/folder', {method: 'POST'})).json();
+  if (j.saved) document.getElementById('wipLine').textContent = 'Work in progress: ' + j.saved.split(/[\\/]/).pop() + ' — saved automatically';
+  else if (j.error) document.getElementById('wipLine').textContent = j.error;
+}
+function printIncome() { recalc(true); document.body.classList.add('print-inc'); window.print(); setTimeout(() => document.body.classList.remove('print-inc'), 500); }
+function dlExcel(a) { recalc(true); setTimeout(() => { window.location = a.href; }, 300); return false; }
+const num = v => { if (v === undefined || v === null || v === '') return 0; const n = parseFloat(String(v).replace(/[$,\s]/g, '').replace(/^\((.*)\)$/, '-$1')); return isNaN(n) ? 0 : n; };
+
+// ---------- income summary: typed-over amounts + Recalculate
+const val = el => {
+  if (el.dataset.shown !== undefined && el.value === el.dataset.shown) return el.dataset.v === '' || el.dataset.v === undefined ? null : parseFloat(el.dataset.v);
+  const v = el.value.trim(); return v === '' ? null : num(v);
+};
+// "Amount was changed from X (as read by the program) to Y" - shown as you type, kept with the row
+function chgNote(tr) {
+  const td = tr.querySelector('td.note'); if (!td) return;
+  let box = td.querySelector('.chg');
+  const parts = [];
+  tr.querySelectorAll('input.cyin').forEach(el => {
+    const typed = val(el), read = el.dataset.read === '' ? null : parseFloat(el.dataset.read);
+    if ((typed === null) === (read === null) && (typed === null || Math.abs(typed - read) <= 0.005)) return;
+    const f = v => v === null ? 'blank' : fmt(v);
+    if (read === null && el.dataset.kind === 'cy' && tr.classList.contains('st-none')) parts.push('Amount entered by the preparer (not read by the program): ' + f(typed));
+    else parts.push((el.dataset.kind === 'cy' ? 'Amount' : 'Withholding') + ' was changed from ' + f(read) + ' (as read by the program) to ' + f(typed));
+  });
+  if (!parts.length) { if (box) box.remove(); return; }
+  if (!box) { box = document.createElement('div'); box.className = 'chg'; td.prepend(box); }
+  box.textContent = parts.join('. ') + '.';
+}
+function recalc(store) {
+  const secs = {}, edits = {}, added = [];
+  let any = false;
+  document.querySelectorAll('table.inc tr.docrow').forEach(tr => {
+    const sec = tr.dataset.sec, live = tr.dataset.live === '1', isAdded = tr.dataset.added === '1';
+    const s = secs[sec] = secs[sec] || {cy: 0, fit: 0, hasCy: false, hasFit: false};
+    const isInv = tr.dataset.inv === '1';
+    const line = isAdded && !isInv ? {id: tr.dataset.id, sec, doc: tr.querySelector('.docin').value, note: (tr.querySelector('.notein') || {}).value || '', cy: null, fit: null} : null;
+    const ne = tr.querySelector('textarea.noteed');
+    if (ne && !isAdded) {
+      const ch = ne.value !== ne.dataset.orig;
+      ne.classList.toggle('edited', ch);
+      if (ch) { (edits[tr.dataset.id] = edits[tr.dataset.id] || {}).note = ne.value; any = true; }
+    }
+    const isRed = tr.dataset.red === '1';
+    tr.querySelectorAll('input.cyin').forEach(el => {
+      if (isRed) {
+        const v = val(el);
+        el.classList.toggle('edited', v !== null);
+        if (v !== null) { (edits[tr.dataset.id] = edits[tr.dataset.id] || {}).cy = v; s.cy += v; s.hasCy = true; any = true; }
+        return;
+      }
+      if (isAdded) {
+        const v = val(el); if (line) line[el.dataset.kind] = v;
+        if (v !== null) { s[el.dataset.kind] += v; s[el.dataset.kind === 'cy' ? 'hasCy' : 'hasFit'] = true; }
+        return;
+      }
+      const typed = val(el), read = el.dataset.read === '' ? null : parseFloat(el.dataset.read);
+      const changed = (typed === null) !== (read === null) || (typed !== null && Math.abs(typed - read) > 0.005);
+      const v = changed ? typed : read;
+      el.classList.toggle('edited', changed);
+      if (el.dataset.kind === 'cy' && tr.classList.contains('st-none')) tr.classList.toggle('filled', typed !== null);
+      if (changed) { (edits[tr.dataset.id] = edits[tr.dataset.id] || {})[el.dataset.kind] = v; any = true; }
+      if (live && v !== null) { s[el.dataset.kind] += v; s[el.dataset.kind === 'cy' ? 'hasCy' : 'hasFit'] = true; }
+    });
+    if (line) added.push(line);
+  });
+  let tot = 0, ftot = 0;
+  document.querySelectorAll('#incTable tr[data-tot]').forEach(tr => {
+    const s = secs[tr.dataset.tot] || {};
+    tr.querySelector('.cyt').textContent = s.hasCy ? fmt(s.cy) : '';
+    tr.querySelector('.fitt').textContent = s.hasFit ? fmt(s.fit) : '';
+    tot += s.cy || 0; ftot += s.fit || 0;
+  });
+  let dtot = 0;
+  document.querySelectorAll('#dedTable tr[data-tot]').forEach(tr => {
+    const s = secs[tr.dataset.tot] || {};
+    tr.querySelector('.cyt').textContent = s.hasCy ? fmt(s.cy) : '';
+    dtot += s.cy || 0;
+  });
+  const dt = document.getElementById('dedTotal'); if (dt) dt.textContent = fmt(dtot);
+  document.getElementById('cyTotal').textContent = fmt(tot);
+  document.getElementById('fitTotal').textContent = ftot ? fmt(ftot) : '';
+  document.getElementById('fitTotal2').textContent = ftot ? fmt(ftot) : '';
+  const T = {}; Object.keys(secs).forEach(k => T[k] = secs[k].cy); T.fit = ftot;
+  if (window.utUpdate) utUpdate(T);
+  if (store) {
+    const h = {'Content-Type': 'application/json'};
+    fetch('/edits/{{ token }}', {method: 'POST', headers: h, body: JSON.stringify(edits)});
+    fetch('/added/{{ token }}', {method: 'POST', headers: h, body: JSON.stringify(added)});
+    document.getElementById('recalcMsg').textContent = 'Totals updated' + (any ? ' — changed amounts are kept.' : '.');
+  }
+}
+// totals follow every keystroke; what you typed is saved for this run a moment later
+let incT;
+document.querySelectorAll('table.inc').forEach(t => t.addEventListener('input', () => {
+  recalc(false); clearTimeout(incT); incT = setTimeout(() => { recalc(true); document.getElementById('recalcMsg').textContent = ''; }, 700);
+}));
+let addN = 0;
+function addLine(sec) {
+  const tot = document.querySelector(`table.inc tr[data-tot="${sec}"]`);
+  const before = document.querySelector(`table.inc tr[data-redsec="${sec}"]`) || tot;
+  const tr = document.createElement('tr');
+  tr.className = 'docrow added'; tr.dataset.sec = sec; tr.dataset.live = '1'; tr.dataset.added = '1';
+  tr.dataset.id = 'add|' + sec + '|' + Date.now() + '_' + (addN++);
+  const ded = tot.closest('table').id === 'dedTable';
+  const blk = tot.closest('tbody'); if (blk) blk.classList.remove('empty');
+  tr.innerHTML = `<td><input class="txt docin" placeholder="Document / description"></td><td class="n"></td><td class="n doccol"></td>
+    <td class="n"><input class="amt cyin" data-kind="cy" data-read=""></td>
+    ${ded ? '' : '<td class="n"><input class="amt cyin" data-kind="fit" data-read=""></td>'}
+    <td class="note"><input class="txt notein" placeholder="Comment"></td>`;
+  before.parentNode.insertBefore(tr, before);
+  tr.querySelector('.docin').focus();
+  recalc(true);
+}
+
+</script>
+<script src="{{ url_for('static', filename='browse.js') }}"></script>
+<script src="{{ url_for('static', filename='schc.js') }}"></script>
+<script src="{{ url_for('static', filename='sche.js') }}"></script>
+<script src="{{ url_for('static', filename='marks.js') }}"></script>
+<script>
+const fitTA = t => { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
+document.querySelectorAll('textarea.noteed').forEach(fitTA);
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('textarea.noteed')) fitTA(e.target); });
+recalc(false);
+</script>
+</body>
+</html>

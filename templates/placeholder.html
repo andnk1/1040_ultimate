@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{{ title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body><div class="wrap narrow"><h1>{{ title }}</h1><div class="banner">{{ text }}</div>
+<a class="btn alt" href="/summary/{{ token }}">← Back to the summary</a></div></body></html>

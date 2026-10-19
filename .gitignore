@@ -1,0 +1,37 @@
+# client data - never in GitHub
+Return_Info/
+Claude_1040_skill/
+_work/
+*.pdf
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.docx
+*.doc
+*.msg
+*.eml
+*.png
+*.jpg
+*.jpeg
+*.zip
+1040 Ultimate WIP*.json
+1040 Ultimate WIP*.bak
+*.bak
+
+# per-computer files created on first use (the master checklist is the office's own list)
+checklist_master.json
+
+# office settings (always-masked numbers, shared drive path) - see local_settings.example.json
+local_settings.json
+
+# Python / editors
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
