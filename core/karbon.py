@@ -24,18 +24,21 @@ DUE_ANY = re.compile(rf"\bDue\s+{DAY},")
 LOG = re.compile(r"changed the (status|due date)|^Automator\b|^Reminder sent|^Request (sent|re-?sent)|uploaded|^Attachment")
 TS_TAIL = re.compile(rf"\s*{DAY},\s+\w+\s+\d{{1,2}},\s+\d{{4}}\s+\d{{1,2}}:\d{{2}}:\d{{2}}\s*(AM|PM)\s*$")
 ACTOR = re.compile(r"^(.{2,60}?)\s+(changed|sent|uploaded|created|completed|reopened|assigned|added|removed)\b")
-NO_ANSWERS = {"no", "no.", "nope", "n", "no thanks", "none", "no change", "no changes"}
+NO_ANSWERS = {"no", "nope", "n", "no thanks", "no thank you", "none", "no change", "no changes", "nothing", "n/a", "na",
+              "not applicable", "no, thanks", "no, thank you"}
 
 
 def is_karbon(text: str) -> bool:
-    return "Client Request Summary" in text and "Client Organizer" in text
+    """Karbon's "Client Request Summary" print (same layout every time; the work's name may differ)."""
+    t = re.sub(r"\s+", " ", text or "").upper()
+    return "CLIENT REQUEST SUMMARY" in t and ("CLIENT ORGANIZER" in t or "KARBON" in t or bool(DUE_ANY.search(re.sub(r"\s+", " ", text or ""))))
 
 
 def read_karbon(path) -> dict:
     doc, _ = open_pdf(path)
     with doc:
         text = "\n".join(page_text(doc, i) for i in range(len(doc)))
-    head = text.split("Client Organizer", 1)[0]
+    head = text.split("Client Organizer", 1)[0] if "Client Organizer" in text else text[:1500]
     m = re.search(r"Tax:\s*(.+)", head)
     title = m.group(1).strip() if m else ""
     lines = []
@@ -100,7 +103,18 @@ def read_karbon(path) -> dict:
         source = "text layout"
         for q in qs:
             q["answer"] = clean_answer(q["answer"], q.get("who", ""))
+    for q in qs:
+        q["question"] = clean_question(q["question"])
     return dict(title=title, questions=qs, source=source)
+
+
+def clean_question(q: str) -> str:
+    """Drops the avatar letter(s) Karbon prints in front of a question ("Y Did you ..." -> "Did you ...")."""
+    q = (q or "").strip()
+    m = re.match(r"^([A-Z]{1,2})\s+(?=[A-Z][a-z])", q)
+    if m and m.group(1) not in ("A", "I"):
+        q = q[m.end():]
+    return q
 
 
 PINK = (0.988, 0.941, 0.957)          # the client's answer bubble
@@ -186,12 +200,19 @@ def clean_answer(text: str | None, who: str = "") -> str | None:
     return "\n".join(out)
 
 
+def is_just_no(answer: str | None) -> bool:
+    """True when the client's answer is only "No" (any case / punctuation, also "No" on several lines)."""
+    lines = [re.sub(r"[\s\u00a0\u200b]+", " ", l).strip().lower().strip(" .!,;:-'\"") for l in (answer or "").splitlines()]
+    lines = [l for l in lines if l]
+    return bool(lines) and all(l in NO_ANSWERS for l in lines)
+
+
 def answered(k: dict) -> list[dict]:
-    """Questions with an answer that isn't 'No'."""
+    """Questions with an answer that isn't just 'No' (unanswered ones are left out too)."""
     out = []
     for q in k.get("questions", []):
         a = (q.get("answer") or "").strip()
-        if not a or a.lower().strip(" .!") in NO_ANSWERS:
+        if not a or is_just_no(a):
             continue
         out.append(q)
     return out

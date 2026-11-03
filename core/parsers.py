@@ -403,6 +403,172 @@ W2_BOXES = [("1", r"Wages,?\s*tips"), ("2", r"Federal\s+income\s+tax\s+withheld"
             ("4", r"Social\s+security\s+tax\s+withheld"), ("5", r"Medicare\s+wages"), ("6", r"Medicare\s+tax\s+withheld"),
             ("16", r"State\s+wages"), ("17", r"State\s+income\s+tax")]
 W2_AMT = re.compile(r"^\$?-?[\d,]*\d\.\d\d$")
+# the other boxes (2026-11-01, ADP "W-2 and Earnings Summary" + the IRS layout): box letter / number + IRS box name; the value is
+# read from the box's cell = below the label down to the next box label in that column (box 14: also right of the label)
+W2_MORE = [("a", r"Employee.?s\s+(social\s+security|SSA|SSN|soc)"), ("b", r"Employer(.?s)?\s+(identification|FED|federal|ID\b|EIN)"),
+           ("c", r"Employer.?s\s+name"), ("d", r"Control\s+number"), ("e", r"Employee.?s\s+(first\s+)?name"),
+           ("f", r"Employee.?s\s+address"), ("7", r"Social\s+security\s+tips"), ("8", r"Allocated\s+tips"),
+           ("10", r"Dependent\s+care"), ("11", r"Non\s*-?\s*qualified"), ("13", r"Stat"), ("14", r"Other"),
+           ("15", r"State\b(?!\s+(wages|income))"), ("18", r"Local\s+wages"), ("19", r"Local\s+income\s+tax"), ("20", r"Locality")]
+W2_MARK = {"X", "x", "✓", "✔", "☒", "☑"}
+
+
+def _w2_labels(words) -> list[dict]:
+    """Every box label on the page (box letter / number + its IRS name): {box, x, y, x1, words}. Boxes 12a-d count as labels too
+    (they are the edges of the cells beside them)."""
+    out = []
+    for n in words:
+        m = re.fullmatch(r"(?i)(e/f|[a-f]|\d{1,2}[a-d]?)(.*)", n[4])
+        if not m:
+            continue
+        box, glued = m.group(1).lower(), m.group(2)
+        row = sorted([w for w in words if w is not n and abs(w[1] - n[1]) < 4 and w[0] > n[2] - 1], key=lambda w: w[0])
+        seq, last = [], n[2]
+        for w in row:
+            if w[0] - last > 12 or W2_AMT.match(w[4]) or re.fullmatch(r"\d{1,2}[a-d]?", w[4]):   # an amount / the next box
+                break
+            seq.append(w)
+            last = w[2]
+        txt = (glued + " " + " ".join(w[4] for w in seq)).strip()
+        name = "12" if re.fullmatch(r"12[a-d]", box) else None
+        box = "e" if box == "e/f" else box
+        for b, pat in W2_BOXES + W2_MORE:
+            if name is None and b == box and txt and re.match(pat, txt, re.I):
+                name = b
+        if name:
+            out.append(dict(box=name, x=n[0], y=n[1], x1=seq[-1][2] if seq else n[2], h=max(n[3] - n[1], 3), words=[n] + seq))
+    # boxes a-f printed without their letter ("Employer's name, address, and ZIP code" - the IRS blank as payroll services print
+    # it): the IRS name at the start of a phrase (no word just before it on the row); only for boxes not found with their letter
+    have = {l["box"] for l in out}
+    for n in words:
+        if not re.match(r"(?i)(Employ|Control)", n[4]):
+            continue
+        if any(w is not n and abs(w[1] - n[1]) < 4 and -1 <= n[0] - w[2] < 12 for w in words):
+            continue
+        row = sorted([w for w in words if abs(w[1] - n[1]) < 4 and w[0] >= n[0]], key=lambda w: w[0])
+        seq, last = [], n[0]
+        for w in row:
+            if w[0] - last > 12 or W2_AMT.match(w[4]) or (seq and re.fullmatch(r"\d{1,2}[a-d]?", w[4])):   # an amount / the next box
+                break
+            seq.append(w)
+            last = w[2]
+        txt = " ".join(w[4] for w in seq)
+        b = next((b for b, pat in W2_MORE if b in "abcdef" and re.match(pat, txt, re.I)), None)
+        if b and b not in have:
+            out.append(dict(box=b, x=n[0], y=n[1], x1=seq[-1][2], h=max(n[3] - n[1], 3), words=seq, bare=True))
+    return out
+
+
+def _w2_cell(words, lab, labs, x1, y1, same_row=False) -> list[list]:
+    """The lines (words sorted by x) in a label's box: right edge = the next label on its row (else the copy's edge), bottom =
+    the next label below it in its column."""
+    bot = min([l["y"] for l in labs if l["y"] > lab["y"] + 5 and -12 <= l["x"] - lab["x"] < 60] + [y1, lab["y"] + 80])
+    right = min([l["x"] for l in labs if l is not lab and lab["y"] - 6 < l["y"] < bot - 4 and l["x"] > lab["x1"] - 2] + [x1])
+    bot = min([l["y"] for l in labs if l["y"] > lab["y"] + 5 and lab["x"] - 12 <= l["x"] < right - 2] + [bot])
+    skip = {id(w) for l in labs for w in l["words"]}
+    right = right - 6 if right < x1 else right               # amounts end at the next box's label: they start a little left of it
+    ws = [w for w in words if id(w) not in skip and lab["x"] - 8 <= w[0] < right
+          and ((same_row and abs(w[1] - lab["y"]) < 4 and w[0] >= lab["x1"]) or lab["y"] + 3 < w[1] < bot - 4)]
+    out, last = [], lab["y"]
+    for ln in _rows(ws):                                     # the box ends at a gap of 5+ label heights (text printed under the form)
+        if ln[0][1] - last > 5 * lab["h"]:
+            break
+        out.append(ln)
+        last = ln[0][1]
+    return out
+
+
+def _w2_more(words, labs, x0, x1, y0, y1) -> dict:
+    """Boxes a-f, 7, 8, 10, 11, 13, 14, 15-20 of one W-2 copy (its area: x0-x1, y0-y1)."""
+    labs = [l for l in labs if x0 <= l["x"] < x1 and y0 <= l["y"] < y1]
+    def first(b):                                            # the top one; on the same row (within 4pt) the leftmost
+        ls = [l for l in labs if l["box"] == b]
+        top = min((l["y"] for l in ls), default=None)
+        return min((l for l in ls if l["y"] - top < 4), key=lambda l: l["x"], default=None)
+    cell = lambda l, same=False: _w2_cell(words, l, labs, x1, y1, same) if l else []
+    text = lambda ln: " ".join(w[4] for w in ln if not W2_AMT.match(w[4])).strip()        # text boxes: amounts left out
+    amt = lambda ln: next((_n(w[4].lstrip("$")) for w in ln if W2_AMT.match(w[4])), None)
+    out = {}
+    lines = [text(ln) for ln in cell(first("a"))]
+    m = re.search(r"[\dX*•]{3}-?[\dX*•]{2}-?\d{4}", " ".join(lines))
+    if m:
+        out["ssn"] = m.group(0)
+    m = re.search(r"\b\d{2}-\d{7}\b", " ".join(text(ln) for ln in cell(first("b"))))
+    if m:
+        out["ein"] = m.group(0)
+    lines = [t for t in (text(ln) for ln in cell(first("c"))) if t and not re.search(r"(?i)\bbatch\s*#", t)]
+    if lines:
+        k = next((i for i, t in enumerate(lines) if i and re.match(r"(?i)(\d|P\.?\s?O\.?\s+BOX)", t)), len(lines))
+        out["er"] = " ".join(lines[:k])
+        if lines[k:]:
+            out["er_addr"] = ", ".join(lines[k:])
+    lines = [text(ln) for ln in cell(first("d"))[:2]]
+    if any(lines):
+        out["ctl"] = " ".join(t for t in lines if t)
+    lines = [t for t in (text(ln) for ln in cell(first("e"))) if t]
+    if lines:
+        out["ee"] = lines[0]
+    addr = lines[1:] or [t for t in (text(ln) for ln in cell(first("f"))) if t]
+    if addr:
+        out["ee_addr"] = ", ".join(addr)
+    for b in ("7", "8", "10", "11"):
+        v = next((amt(ln) for ln in cell(first(b)) if amt(ln) is not None), None)
+        if v is not None:
+            out[b] = v
+    l13 = first("13")
+    if l13:                                                  # an X under Stat emp / Ret. plan / 3rd party sick pay, by position
+        right = min([l["x"] for l in labs if l is not l13 and abs(l["y"] - l13["y"]) < 6 and l["x"] > l13["x1"] - 2] + [x1])
+        heads = []
+        for w in words:
+            if abs(w[1] - l13["y"]) < 12 and l13["x"] <= w[0] < right:
+                for key, pat in (("stat", r"stat"), ("ret", r"ret"), ("sick", r"3rd|third")):
+                    i = re.search(pat, w[4], re.I)
+                    if i:
+                        heads.append((w[0] + (w[2] - w[0]) * i.start() / max(len(w[4]), 1), key))
+        heads = sorted({k: x for x, k in sorted(heads, reverse=True)}.items(), key=lambda kv: kv[1])
+        out["13"] = dict(stat=False, ret=False, sick=False)
+        for w in words:
+            if w[4] in W2_MARK and l13["y"] + 3 < w[1] < l13["y"] + 30 and l13["x"] - 4 <= w[0] < right and heads:
+                cx = (w[0] + w[2]) / 2
+                out["13"][next((k for k, x in reversed(heads) if x <= cx + 2), heads[0][0])] = True
+    items, pend = [], None
+    for ln in cell(first("14"), True):                       # "35000.00 401A-TAX" (ADP: amount first) or "NY SDI 123.45"
+        a = amt(ln)
+        lab = " ".join(w[4] for w in ln if not W2_AMT.match(w[4])).strip()
+        if a is None:
+            pend = lab or pend
+            continue
+        items.append(((lab or pend or "Other"), a))
+        pend = None
+    if items:
+        out["14"] = items
+    # 15-17 / 18-20: one row per line with an amount (the i-th line of each box); text lines past them are the copy's footer
+    amts = lambda b: [a for a in (amt(ln) for ln in cell(first(b))) if a is not None]
+    w16, t17 = amts("16"), amts("17")
+    st = [text(ln) for ln in cell(first("15"))]
+    st = [s for s in st if re.match(r"[A-Z]{2}\b", s)] or (st if w16 or t17 else [])
+    st = st[:max(len(w16), len(t17), 1)]
+    states = []
+    for i in range(max(len(st), len(w16), len(t17))):
+        s = st[i] if i < len(st) else ""
+        m = re.match(r"([A-Z]{2})\b\s*(.*)", s)
+        row = dict(st=m.group(1) if m else None, id=(m.group(2) if m else s) or None,
+                   w=w16[i] if i < len(w16) else None, t=t17[i] if i < len(t17) else None)
+        if any(v is not None for v in row.values()):
+            states.append(row)
+    if states:
+        out["states"] = states
+    w18, t19 = amts("18"), amts("19")
+    loc = [text(ln) for ln in cell(first("20"))][:max(len(w18), len(t19))]       # a locality without amounts: not kept
+    locs = []
+    for i in range(max(len(loc), len(w18), len(t19))):
+        row = dict(name=(loc[i] if i < len(loc) else "").replace(":", " ") or None,
+                   w=w18[i] if i < len(w18) else None, t=t19[i] if i < len(t19) else None)
+        if any(v is not None for v in row.values()):
+            locs.append(row)
+    if locs:
+        out["locals"] = locs
+    return out
 
 
 def _w2_page(page) -> list[dict]:
@@ -447,18 +613,26 @@ def _w2_page(page) -> list[dict]:
     # a copy = one "1 Wages" label; its boxes are the labels between it and the next copy's "1 Wages"
     # copies side by side on the same row (payroll prints: 3-4 copies per page) are split by x as well
     ones = sorted([l for l in labels if l["box"] == "1"], key=lambda l: (l["y"], l["x"]))
+    more = _w2_labels(words)
+    rows_y = sorted({o["y"] for o in ones})
+    rows_y = [y for i, y in enumerate(rows_y) if not i or y - rows_y[i - 1] > 4]
     for k, one in enumerate(ones):
         y0 = one["y"] - 5
         y1 = min([o["y"] - 5 for o in ones if o["y"] > one["y"] + 4] or [1e9])
         x0 = one["x"] - 5
         x1 = min([o["x"] - 5 for o in ones if abs(o["y"] - one["y"]) <= 4 and o["x"] > one["x"] + 4] or [1e9])
-        mine = [l for l in labels if y0 <= l["y"] < y1 and x0 <= l["x"] < x1]
+        # box 12 labels: the IRS blank prints "12a" a little left of the "1" label - one that close to the next copy's "1" is that copy's
+        others = [o for o in ones if o is not one and abs(o["y"] - one["y"]) <= 4]
+        mine = [l for l in labels if y0 <= l["y"] < y1 and (x0 <= l["x"] < x1 if l["box"] != "12" else
+                (x0 - 40 <= l["x"] < x1 and not any(0 < o["x"] - l["x"] <= 40 for o in others)))]
         amts_all = amts
         amts = [a for a in amts_all if x0 - 15 <= a[0] < x1 - 15]
         out = {}
         for l in sorted(mine, key=lambda l: (l["y"], l["x"])):
             if l["box"] == "12":
                 codes = [w for w in words if re.fullmatch(r"[A-HJ-NP-Z]{1,2}", w[4]) and 0 < w[1] - l["y"] < 60 and w[1] < y1 and -10 < w[0] - l["x"] < 160]
+                # the word "Code" printed one letter per line (IRS blank): its "C" is not a code
+                codes = [c for c in codes if not any(o[4] in ("o", "O") and abs(o[0] - c[0]) < 2 and 0 < o[1] - c[1] < 6 for o in words)]
                 for c in codes:
                     a = next((a for a in amts if abs(a[1] - c[1]) < 4 and a[0] > c[0] and id(a) not in used), None)
                     if a:
@@ -467,14 +641,45 @@ def _w2_page(page) -> list[dict]:
                 continue
             # the amount: on the label's row to the right, else the first one below it in the label's column
             right = [a for a in amts if id(a) not in used and abs(a[1] - l["y"]) < 4 and a[0] > l["x1"] - 2]
-            below = [a for a in amts if id(a) not in used and 0 < a[1] - l["y"] < 60 and a[1] < y1 and -15 < a[0] - l["x"] < 150]
+            nxt = min([m["y"] for m in more if m["y"] > l["y"] + 5 and abs(m["x"] - l["x"]) < 40] + [y1])   # not past the next box
+            below = [a for a in amts if id(a) not in used and 0 < a[1] - l["y"] < 60 and a[1] < nxt and -15 < a[0] - l["x"] < 150]
             peers = [m for m in mine if m is not l and abs(m["y"] - l["y"]) < 4]          # labels side by side on the same row
-            below = [a for a in below if all(abs(a[0] - l["x"]) <= abs(a[0] - m["x"]) for m in peers)]
+            below = [a for a in below if all(abs(a[0] - l["x"]) <= abs(a[0] - m["x"]) + 3 for m in peers)]   # +3: halfway ties
             cand = sorted(right, key=lambda a: a[0])[:1] or sorted(below, key=lambda a: (a[1], abs(a[0] - l["x"])))[:1]
             if cand and l["box"] not in out:
                 used.add(id(cand[0]))
                 out[l["box"]] = _n(cand[0][4].lstrip("$"))
-        if out.get("1") is not None:
+        # the other boxes: the copy's whole area - its column (to the next copy on the row, else past box 2 / 4 / 6) and its
+        # band of rows (ADP prints c / d / e above box 1 on the reference copy, below it on the filing copies)
+        peers = sorted([o for o in ones if abs(o["y"] - one["y"]) <= 4], key=lambda o: o["x"])
+        i = peers.index(one)
+        r = next(j for j, y in enumerate(rows_y) if abs(y - one["y"]) <= 4)
+        ey0 = rows_y[r] - 5 if r else 0
+        ey1 = rows_y[r + 1] - 5 if r + 1 < len(rows_y) else 1e9
+        # where a copy starts: its leftmost box label (the IRS blank prints boxes a-f and 7-11 left of box 1), else its box 1;
+        # only labels past the copy before it (right of its box 2 / 4 / 6 column)
+        def bound(j):
+            prev = max([l["x1"] for l in labels if l["box"] in ("2", "4", "6") and ey0 <= l["y"] < ey1
+                        and peers[j - 1]["x"] <= l["x"] < peers[j]["x"]] + [peers[j - 1]["x"] + 40])
+            return min([l["x"] for l in more if ey0 <= l["y"] < ey1 and prev < l["x"] < peers[j]["x"]] + [peers[j]["x"]]) - 5
+        ex0 = bound(i) if i else 0
+        edge = [l["x1"] + 8 for l in mine if l["box"] in ("2", "4", "6")]
+        ex1 = bound(i + 1) if i + 1 < len(peers) else (x1 if x1 < 1e9 else (max(edge) if edge else 1e9))
+        for b, v in _w2_more(words, more, ex0, ex1, ey0, ey1).items():
+            out.setdefault(b, v)
+        # 16 / 17 = the state rows (one row per state, read box by box); the first-amount-below read can reach text under the form
+        for b, k in (("16", "w"), ("17", "t")):
+            vs = [s[k] for s in out.get("states") or [] if s.get(k) is not None]
+            if vs:
+                out[b] = round(sum(vs), 2)
+            else:
+                out.pop(b, None)
+        if out.get("1") is None:
+            out.pop("1", None)
+            if (out.get("12") or out.get("14")) and not any(out.get(b) for b in ("2", "3", "4", "5", "6", "16", "17")):
+                out["overflow"] = True                       # "ADDITIONAL W-2 FOR BOX 12 OR 14 OVERFLOW" (ADP): no box 1
+                vals.append(out)
+        else:
             vals.append(out)
         amts = amts_all
     return vals
@@ -484,12 +689,28 @@ def parse_w2(path, pw=None) -> dict:
     """W-2 by its IRS box names only. Copies B / C / 2 with the same amounts count once; different W-2s add up."""
     doc, pw = open_pdf(path, [pw] if pw else None)
     forms = []
+    key = lambda f: (f.get("1"), f.get("2"), f.get("3"), f.get("5"))
     with doc:
         for page in doc:
-            for f in _w2_page(page):
-                key = (f.get("1"), f.get("2"), f.get("3"), f.get("5"))
-                if all(key != (g.get("1"), g.get("2"), g.get("3"), g.get("5")) for g in forms):
+            got = _w2_page(page)
+            for f in [f for f in got if not f.get("overflow")]:
+                same = next((g for g in forms if key(g) == key(f)), None)
+                if same is None:
                     forms.append(f)
+                else:                                        # another copy of the same W-2: fills boxes the first copy missed
+                    full = lambda rows: sum(v is not None for r in rows or [] for v in r.values())
+                    for b, v in f.items():
+                        if b in ("states", "locals") and full(v) > full(same.get(b)):
+                            same[b] = v
+                        else:
+                            same.setdefault(b, v)
+            over = next((f for f in got if f.get("overflow")), None)     # the copies on an overflow page are alike: one is enough
+            if over and forms:                               # -> the W-2 before it with the same EIN / SSN, else the last one
+                to = next((g for g in reversed(forms) if g.get("ein") == over.get("ein") and g.get("ssn") == over.get("ssn")), forms[-1])
+                for b in ("12", "14"):
+                    for item in over.get(b) or []:
+                        if item not in (to.get(b) or []):
+                            to.setdefault(b, []).append(item)
     if not forms:                                            # list layout: "1 Wages, tips, other compensation ..... 1,234.56"
         for f in _list_boxes(path, W2_BOXES, pw):
             g = {k: _lnum(v) for k, v in f.items() if _lnum(v) is not None}
@@ -537,8 +758,88 @@ def koinly_8949_group(path, pw=None):
     return None
 
 
+NUM_RE = r"\(?-?[\d,]+\.\d{1,2}\)?"
+
+
+def _sched_d(pg) -> dict:
+    """Schedule D read like a 1099-B: one row per Form 8949 box, from the lines that carry 1099-B / 1099-DA sales only -
+    1a / 1b, 2, 3 (short-term) and 8a / 8b, 9, 10 (long-term). Lines 4-6 and 11-14 come from other documents (K-1s, carryovers,
+    capital gain distributions) and the totals 7 / 15 are not lines - both left out. Columns (d) proceeds, (e) cost,
+    (g) adjustments, (h) gain by the column headers."""
+    W = pg.width
+    ws = pg.extract_words()
+    heads = {}
+    for w in ws:
+        if w["text"] in ("(d)", "(e)", "(g)", "(h)") and w["text"] not in heads:
+            heads[w["text"]] = (w["x0"] + w["x1"]) / 2
+    lbl = [w for w in ws if w["x0"] < 0.1 * W and w["text"] in KOINLY_LINE_BOX]
+    nums = [w for w in ws if w["x0"] > 0.4 * W and re.fullmatch(NUM_RE, w["text"])]
+    val = lambda t: _n(t if "." in t else t + ".00")
+    lines, parts, notes, checks, pn = [], {"st": [], "lt": []}, [], [], {}
+    m = lambda v: f"({abs(v):,.2f})" if v < 0 else f"{v:,.2f}"
+    for x in lbl:
+        row = [w for w in nums if 0 <= w["top"] - x["top"] < 16]
+        if not row:
+            continue
+        col = {}
+        for w in row:
+            c = min(heads, key=lambda h: abs(heads[h] - (w["x0"] + w["x1"]) / 2)) if heads else "(h)"
+            if not heads and w is not max(row, key=lambda w: w["x1"]):
+                continue
+            col[c] = val(w["text"])
+        d, e, g, h = (col.get(k) for k in ("(d)", "(e)", "(g)", "(h)"))
+        if h is None and d is not None and e is not None:
+            h = round(d - e + (g or 0), 2)
+        if h is None:
+            continue
+        term = "st" if x["text"] in ("1a", "1b", "2", "3") else "lt"
+        box = KOINLY_LINE_BOX[x["text"]]
+        if d is not None and e is not None and abs(d - e + (g or 0) - h) > 1:
+            checks.append(f"Line {x['text']}: proceeds − cost + adjustments = {d - e + (g or 0):,.2f}, column (h) shows {h:,.2f}")
+        if not any(abs(v or 0) > 0.004 for v in (d, e, g, h)):
+            continue                                        # a line printed with 0.00 everywhere
+        parts[term].append((f"({box})", h))
+        lines.append(x["text"])
+        bits = [f"proceeds {m(d)}" if d is not None else "", f"cost {m(e)}" if e is not None else "",
+                f"adjustments {m(g)}" if g else "", f"gain {m(h)}"]
+        txt = f"Schedule D line {x['text']}: " + " · ".join(b for b in bits if b)
+        notes.append(f"{term.upper()}: {txt}")
+        pn[f"({box})"] = (pn[f"({box})"] + "; " if f"({box})" in pn else "") + txt
+    st, lt = round(sum(v for _, v in parts["st"]), 2), round(sum(v for _, v in parts["lt"]), 2)
+    return dict(status="partial" if checks else "read", amounts=dict(st=st, lt=lt), detail=dict(lines=lines), checks=checks,
+                notes=notes or ["Schedule D lines 1a–3 / 8a–10 are 0"], parts={k: v for k, v in parts.items() if v}, part_notes=pn)
+
+
+def _sched_1(pg) -> dict:
+    """Schedule 1: only line 8v (digital assets received as ordinary income) and line 8z (other income, the type listed) - each
+    its own Other income row. The amount sits left of the line's number box ("8v"), on its row."""
+    ws = pg.extract_words()
+    parts, part_notes = [], {}
+    for ln, what in (("8v", "digital assets received as ordinary income"), ("8z", "other income")):
+        lab = next((w for w in ws if w["text"] == ln and w["x0"] > 0.4 * pg.width), None)
+        if not lab:
+            continue
+        cy = (lab["top"] + lab["bottom"]) / 2
+        amt = [w for w in ws if re.fullmatch(NUM_RE, w["text"]) and w["x0"] > lab["x1"] and abs((w["top"] + w["bottom"]) / 2 - cy) < 10]
+        if not amt:
+            continue
+        v = _n(amt[0]["text"])
+        kind = ""
+        if ln == "8z":                                      # "z Other income. List type and amount: <type>"
+            a = next((w for w in ws if w["text"].lower().startswith("amount:") and 0 <= cy - w["top"] < 30), None)
+            if a:
+                kind = " ".join(w["text"] for w in ws if a["top"] - 3 <= w["top"] <= lab["bottom"] + 2 and w["x1"] < lab["x0"] - 2
+                                and (w["top"] > a["top"] + 3 or w["x0"] > a["x1"]) and w is not amt[0]
+                                and not re.fullmatch(r"[.\s]+", w["text"])).strip()
+        parts.append((f"line {ln}", v))
+        part_notes[f"line {ln}"] = f'Entered as "Other income" — Schedule 1 line {ln}: {what}' + (f" ({kind})" if kind else "")
+    return dict(status="read", amounts=dict(other=round(sum(v for _, v in parts), 2)), detail=dict(lines=[p[0] for p in parts]),
+                notes=['Entered as "Other income" — Schedule 1 lines 8v / 8z' + ("" if parts else " are blank")], checks=[],
+                parts=dict(other=parts) if parts else {}, part_notes=part_notes)
+
+
 def parse_koinly(path, doc_type: str, pw=None) -> dict:
-    from .py_return import _form_lines
+    """Crypto tax reports printed as the IRS forms (Koinly or any other program): Schedule D, Schedule 1, Form 8949."""
     doc, pw = open_pdf(path, [pw] if pw else None)
     with doc:
         flat = [re.sub(r"\s+", " ", page_text(doc, i)) for i in range(len(doc))]
@@ -547,50 +848,13 @@ def parse_koinly(path, doc_type: str, pw=None) -> dict:
             i = next((i for i, t in enumerate(flat) if "Capital Gains and Losses" in t), None)
             if i is None:
                 return dict(status="none", amounts={}, detail={}, notes=[], checks=["Schedule D page not found"])
-            pg = pdf.pages[i]
-            v = _form_lines(pg, OrderedDict([("7", ""), ("15", "")]))
-            if "7" in v and "15" in v:
-                return dict(status="read", amounts=dict(st=v["7"], lt=v["15"]), detail=v,
-                            notes=["Koinly Schedule D lines 7 / 15"], checks=[])
-            # Koinly fills only lines 1b/2/3 and 8b/9/10 (column h) - add them up per part
-            W = pg.width
-            ws = pg.extract_words()
-            p2 = [w["top"] for w in ws if w["text"] == "Part" and w["x0"] < 0.12 * W]
-            split = p2[1] if len(p2) > 1 else None
-            col_h = [w for w in ws if w["x0"] > 0.78 * W and re.fullmatch(r"\(?-?[\d,]+\.\d{1,2}\)?", w["text"])]
-            if split is None or not col_h:
-                return dict(status="none", amounts={}, detail={}, notes=[], checks=["Schedule D amounts not found"])
-            st = sum(_n(w["text"] if "." in w["text"] else w["text"] + ".00") for w in col_h if w["top"] < split)
-            lt = sum(_n(w["text"]) for w in col_h if w["top"] > split)
-            # which Schedule D line each amount sits on -> Form 8949 box (pair: 1099-B box / 1099-DA box)
-            lbl = [w for w in ws if w["x0"] < 0.1 * W and re.fullmatch(r"\d{1,2}[ab]?", w["text"])]
-            parts = {"st": [], "lt": []}
-            for w in col_h:
-                above = [x for x in lbl if 0 <= w["top"] - x["top"] < 16]
-                line = max(above, key=lambda x: x["top"])["text"] if above else "?"
-                v = _n(w["text"] if "." in w["text"] else w["text"] + ".00")
-                parts["st" if w["top"] < split else "lt"].append((f"({KOINLY_LINE_BOX.get(line, 'line ' + line)})", v))
-            parts = {k: [x for x in v if abs(x[1]) > 0.004] or v[:1] for k, v in parts.items() if v}
-            return dict(status="read", amounts=dict(st=st, lt=lt), detail=dict(lines=len(col_h)),
-                        notes=["Koinly Schedule D — column (h) of lines 1-6 (ST) and 8-14 (LT); lines 7 / 15 are blank on the Koinly form"],
-                        checks=[], parts=parts)
+            return _sched_d(pdf.pages[i])
         if "Schedule 1" in doc_type:
             i = next((i for i, t in enumerate(flat) if "Additional Income" in t), None)
             if i is None:
                 return dict(status="none", amounts={}, detail={}, notes=[], checks=["Schedule 1 page not found"])
-            pg = pdf.pages[i]
-            ws = pg.extract_words()
-            p1 = next((w["top"] for w in ws if w["text"] == "Part" and w["x0"] < 0.12 * pg.width), 0)
-            p2 = next((w["top"] for w in ws if w["text"] == "Part" and w["x0"] < 0.12 * pg.width and w["top"] > p1 + 5), 10_000)
-            amts = [w for w in ws if p1 < w["top"] < p2 and w["x0"] > 0.55 * pg.width
-                    and re.fullmatch(r"\(?-?[\d,]+\.\d{1,2}\)?", w["text"])]
-            v = _form_lines(pg, OrderedDict([("9", ""), ("10", "")]))
-            tot = v.get("9") if "9" in v else (sum(_n(w["text"]) for w in amts) if amts else None)
-            if tot is None:
-                return dict(status="none", amounts={}, detail={}, notes=[], checks=["Schedule 1 amounts not found"])
-            return dict(status="read", amounts=dict(other=tot), detail=dict(lines=len(amts)),
-                        notes=['Entered as "Other income" — Koinly Schedule 1 (staking / rewards / airdrops)'], checks=[])
-    return dict(status="none", amounts={}, detail={}, notes=["Koinly 8949 — detail of Schedule D, not added"], checks=[])
+            return _sched_1(pdf.pages[i])
+    return dict(status="none", amounts={}, detail={}, notes=[], checks=["Form 8949 — detail of Schedule D, not added"])
 
 
 # ---------------------------------------------------------------- 1099-R / SSA-1099 (single forms)
@@ -853,8 +1117,8 @@ def parse_1099sa(path, pw=None) -> dict:
 
 # ---------------------------------------------------------------- K-1 (1065) - via the K-1 Interpretation parser
 def parse_k1(path, pw=None) -> list[dict]:
-    from .k1_parser import parse_pdf
-    from .k1_summary import k1_section_rows
+    from .k1v.k1_parser import parse_pdf
+    from .k1v.k1_summary import k1_section_rows
     _, pw = _texts(path, pw, 1)
     out = []
     for k in parse_pdf(str(path), pw):
@@ -865,7 +1129,8 @@ def parse_k1(path, pw=None) -> list[dict]:
         mapc = {"int": "interest", "div": "dividends", "lt": "lt", "st": "st", "rent": "rental", "ord": "k1"}
         a, notes = {}, []
         for s, (amt, com) in secs.items():
-            a[mapc[s]] = amt
+            k = mapc[s.split("_")[0]]                 # ord_E / ord_A / ord_1 -> K-1 ordinary; st_1256 / lt_1256 -> ST / LT
+            a[k] = a.get(k, 0) + amt
             notes += com
         out.append(dict(name=kd.get("name") or f"K-1 page {kd['page']}", page=kd["page"],
                         status="partial" if kd.get("warnings") else "read", amounts=a, detail={},
@@ -1087,6 +1352,188 @@ def parse_1098e(path, pw=None) -> dict:
     if len(seen) > 1:
         notes.append(f"{len(seen)} different 1098-Es in this file — added together")
     return dict(status="read", amounts=dict(student_loan=round(tot, 2)), detail=dict(box1=tot, box2=box2), notes=notes, checks=[])
+
+
+# ---------------------------------------------------------------- 1098 (mortgage interest)
+# box number + its IRS name (box 10 = "Other" on the IRS blank; lenders print their own name, e.g. "Real estate taxes")
+M_BOXES = [("1", r"Mortgage\s+interest"), ("2", r"Outstanding\s+mortgage"), ("3", r"Mortgage(\s+origination|$)"),
+           ("4", r"Refund\s+of\s+overpaid"), ("5", r"Mortgage\s+insurance"), ("6", r"Points\s+paid"),
+           ("7", r"(The|If)\s+(the\s+)?address"), ("8", r"Address\s+or\s+description"), ("9", r"Number\s+of\s+properties"),
+           ("10", r"[A-Za-z]"), ("11", r"Mortgage(\s+acquisition|$)")]
+M_FOOT = re.compile(r"(?i)Form\s+1098|www\.irs\.gov|Cat\.\s*No\.|keep\s+for\s+your\s+records|Department\s+of\s+the\s+Treasury")
+M_DATE = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$")
+M_MARKS = {"X", "x", "✓", "✔", "■", "☒", "☑"}
+
+
+def _m_labels(words) -> list[dict]:
+    """The 1098 box labels on the page: {box, x, y, x1, h, words, text, marks}. A one-letter word between the box number and
+    its name is a check mark (box 7 on the IRS blank: the ✓ prints between "7" and "If address ...")."""
+    out = []
+    for n in words:
+        if not re.fullmatch(r"\d{1,2}", n[4]) or n[4] not in dict(M_BOXES):
+            continue
+        row = sorted([w for w in words if w is not n and abs(w[1] - n[1]) < 4 and w[0] > n[2] - 1], key=lambda w: w[0])
+        seq, marks, last = [], [], n[2]
+        for w in row:
+            if not seq and len(w[4]) == 1 and not w[4].isalpha() and w[0] - last < 25:
+                marks.append(w)                                   # a check mark, not text
+                last = w[2]
+                continue
+            if w[0] - last > (25 if not seq else 12) or W2_AMT.match(w[4]) or re.fullmatch(r"\d{1,2}", w[4]):
+                break
+            seq.append(w)
+            last = w[2]
+        txt = " ".join(w[4] for w in seq)
+        if txt and re.match(dict(M_BOXES)[n[4]], txt, re.I) and (n[4] != "10" or len(seq) <= 4):
+            out.append(dict(box=n[4], x=n[0], y=n[1], x1=seq[-1][2], h=max(n[3] - n[1], 3), words=[n] + seq + marks,
+                            text=txt, marks=[w[4] for w in marks]))
+    return out
+
+
+def _m_cell(words, lab, labs, x1, y1) -> list[list]:
+    """The lines in a 1098 box: down to the next label in its column, right edge = the next label beside it, or a box on the
+    right that reaches down past this label (the IRS blank's box 8 sits beside boxes 9 / 10)."""
+    col = lambda l: [o["y"] for o in labs if o["y"] > l["y"] + 5 and abs(o["x"] - l["x"]) < 40]
+    bot = min(col(lab) + [y1, lab["y"] + 110])
+    ends = lambda l: min(col(l) + [y1])
+    right = min([l["x"] for l in labs if l is not lab and l["x"] > lab["x1"] - 2 and l["y"] < bot - 4 and ends(l) > lab["y"] + 4]
+                + [x1])
+    foot = [ln[0][1] for ln in _rows(words) if ln[0][1] > lab["y"] + 3 and M_FOOT.search(" ".join(w[4] for w in ln))]
+    bot = min([bot] + foot[:1])                                # the form's footer line ("Form 1098 ... Department of the Treasury")
+    skip = {id(w) for l in labs for w in l["words"]}
+    ws = [w for w in words if id(w) not in skip and lab["x"] - 8 <= w[0] < right - 4 and lab["y"] + 3 < w[1] < bot - 3]
+    out, last = [], None
+    for ln in _rows(ws):                 # the box ends at a gap of 4+ label heights (text printed under it)
+        if last is not None and ln[0][1] - last > 4 * lab["h"]:
+            break
+        out.append(ln)
+        last = ln[0][1]
+    return out
+
+
+def _m_name(words, pat, colR) -> tuple[str, list]:
+    """Lender / borrower block (left column): the first line under the label = the name, the next lines = the address."""
+    lab = next((w for w in words if re.fullmatch(pat, w[4]) and w[0] < colR
+                and any(abs(x[1] - w[1]) < 4 and x[0] > w[2] and re.match(r"(?i)name", x[4]) for x in words)), None)
+    if not lab:
+        return "", []
+    ws = [w for w in words if lab[1] + 3 < w[1] < lab[1] + 60 and lab[0] - 20 <= w[0] < colR - 4]
+    lines = [" ".join(w[4] for w in ln) for ln in _rows(ws)]
+    lines = [t for t in lines if not re.search(r"(?i)\b(telephone|province|postal|ZIP code|street address|including apt)\b|^name\b", t)]
+    lines = [t for t in lines if not re.search(r"(?i)RECIPIENT|PAYER|BORROWER|LENDER|\bTIN\b", t)]
+    return (lines[0] if lines else ""), lines[1:]
+
+
+def _m_page(page) -> list[dict]:
+    """Every 1098 printed on the page (one per box-1 label) -> [{row key: value}] (the form view's row keys: b1 ... b9,
+    b10:<description>, b11, ln = lender, br = borrower, acct)."""
+    words = page.get_text("words")
+    labs = _m_labels(words)
+    anchors = sorted([l for l in labs if l["box"] == "1"], key=lambda l: l["y"])
+    if not anchors:
+        return []
+    W = page.rect.width
+    out = []
+    for i, a in enumerate(anchors):
+        y0 = a["y"] - 130 if i else -1e9
+        y1 = anchors[i + 1]["y"] - 130 if i + 1 < len(anchors) else 1e9
+        ls = [l for l in labs if y0 <= l["y"] < y1]
+        first = lambda b: min((l for l in ls if l["box"] == b), key=lambda l: l["y"], default=None)
+        cell = lambda b: _m_cell(words, first(b), ls, W, y1) if first(b) else []
+        txt = lambda ln: " ".join(w[4] for w in ln if not W2_AMT.match(w[4]))
+        amt = lambda b: next((_n(w[4].lstrip("$")) for ln in cell(b) for w in ln if W2_AMT.match(w[4])), None)
+        f = {}
+        for b in ("1", "2", "4", "5", "6"):
+            v = amt(b)
+            if v is not None:
+                f["b" + b] = v
+        for b in ("3", "11"):
+            v = next((w[4] for ln in cell(b) for w in ln if M_DATE.match(w[4])), None)
+            if v:
+                f["b" + b] = v
+        if first("7"):
+            f["b7"] = bool(first("7")["marks"]) or any(w[4] in M_MARKS for ln in cell("7") for w in ln)
+        if first("8"):
+            l8 = first("8")
+            rows = _m_cell(words, dict(l8, x1=l8["x1"]), ls, min(W, l8["x1"] + 24), y1)    # the legend beside it isn't the address
+            lines = [t for t in (txt(ln).strip() for ln in rows)
+                     if t and not re.search(r"(?i)\(see instructions\)|^securing|^mortgage$|^instructions\)|^acquisition|^date$", t)]
+            if lines:
+                f["b8"] = ", ".join(lines)
+        v = next((w[4] for ln in cell("9") for w in ln if re.fullmatch(r"\d{1,3}", w[4])), None)
+        if v:
+            f["b9"] = v
+        l10 = first("10")
+        if l10:
+            ln10 = cell("10")
+            a10 = amt("10")
+            k = next((i for i, ln in enumerate(ln10) if any(W2_AMT.match(w[4]) for w in ln)), len(ln10))
+            desc = " ".join(t for t in (txt(ln).replace("$", "").strip() for ln in ln10[:k + 1]) if t) or l10["text"]
+            if a10 is not None:
+                f[f"b10:{desc}"] = a10
+        colR = min([l["x"] for l in ls if l["box"] in ("1", "2")] + [W / 2 + 40])
+        ln_, _ = _m_name(words, r"RECIPIENT.S/LENDER.S", colR)
+        br, _ = _m_name(words, r"PAYER.S/BORROWER.S", colR)
+        if ln_:
+            f["ln"] = ln_
+        if br:
+            f["br"] = br
+        acl = next((w for w in words if w[4] == "Account" and any(abs(x[1] - w[1]) < 4 and x[0] > w[2] and x[4].startswith("number")
+                                                                    for x in words)), None)
+        if acl:
+            ws = [w for w in words if acl[1] + 3 < w[1] < acl[1] + 25 and acl[0] - 8 <= w[0] < acl[0] + 200]
+            r0 = _rows(ws)
+            if r0:
+                f["acct"] = " ".join(w[4] for w in r0[0])
+        if any(k != "b7" and k.startswith("b") for k in f):
+            out.append(f)
+    return out
+
+
+def m1098_result(forms: list) -> dict:
+    """The 1098s of one document (row-key dicts) -> the parse result: box 1 -> Deduction summary (mortgage interest); boxes 2,
+    4, 5, 6, 8 and 10 go in the comment (box 4 / 5 / 6 only when not 0)."""
+    if not forms:
+        return dict(status="none", amounts={}, detail={}, notes=[], checks=["1098 box 1 not found"])
+    notes = []
+    for f in forms:
+        parts = []
+        if f.get("b2") is not None:
+            parts.append(f"Box 2 outstanding principal {f['b2']:,.2f}")
+        for b, what in (("b4", "refund of overpaid interest"), ("b5", "mortgage insurance premiums"), ("b6", "points paid")):
+            if f.get(b):
+                parts.append(f"Box {b[1:]} {what} {f[b]:,.2f}")
+        if f.get("b8"):
+            parts.append(f"Box 8 property: {f['b8']}")
+        elif f.get("b7"):
+            parts.append("Box 7: property = borrower's address")
+        for k, v in f.items():
+            if k.startswith("b10:") and v:
+                parts.append(f"Box 10 {k[4:]} {v:,.2f}")
+        if parts:
+            notes.append((f"{f['ln']}: " if len(forms) > 1 and f.get("ln") else "") + " · ".join(parts))
+    if len(forms) > 1:
+        notes.append(f"{len(forms)} different 1098s in this file — added together")
+    tot = round(sum(f.get("b1") or 0 for f in forms), 2)
+    return dict(status="read", amounts=dict(mortgage=tot), detail=dict(boxes=forms), notes=notes,
+                checks=[] if any(f.get("b1") is not None for f in forms) else ["1098 box 1 not found"])
+
+
+def parse_1098(path, pw=None) -> dict:
+    """1098 (mortgage interest): the lender's print or the IRS blank. Copies (A / B / C) with the same amounts count once."""
+    doc, _ = open_pdf(path, [pw] if pw else None)
+    forms = []
+    with doc:
+        for page in doc:
+            for f in _m_page(page):
+                key = (f.get("b1"), f.get("b2"), f.get("b3"), f.get("acct"))
+                old = next((o for o in forms if (o.get("b1"), o.get("b2"), o.get("b3"), o.get("acct")) == key), None)
+                if old is None:
+                    forms.append(f)
+                else:                                   # another copy: boxes it missed are filled from this one
+                    for k, v in f.items():
+                        old.setdefault(k, v)
+    return m1098_result(forms)
 
 
 # ---------------------------------------------------------------- 1095-A / 1098-T (not income: a note + screen 2 checks)
@@ -1322,6 +1769,8 @@ def parse_document(d: dict) -> dict | list | None:
             return parse_1099r(path)
         if fam == "1098e":
             return parse_1098e(path)
+        if fam == "1098":
+            return parse_1098(path)
         if fam == "1098t":
             return parse_1098t(path)
         if fam == "1095a":

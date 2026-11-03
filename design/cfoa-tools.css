@@ -1,0 +1,66 @@
+/* CFO Associates tools — shared base stylesheet. See DESIGN_RULES.md. Load first; app CSS after. */
+:root{
+  --navy:#003366; --blue:#3C69AB; --teal:#4e7874; --green:#446B67; --mint:#7DD8C9; --mint-hover:#9BE3D7;
+  --ink:#374151; --line:#9AA3B2; --grey:#DFE1E9; --cardbg:#EFEFF7;
+  --ok:#E8F8F5; --ok-total:#D3F1EC; --total:#E3F1E8; --grand:#DADCE3; --secrow:#F7F7FB;
+  --changed-bg:#FDF0F0; --changed-text:#1F5FBF;
+  --warn:#8B0000; --warn-bg:#FDF0F0;
+  --info:#294F4C; --info-bg:#F1F5F4;
+}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#fff;color:var(--ink)}
+h1{color:var(--navy);font-size:2.2rem;font-weight:800;margin:0 0 6px}
+h1::after{content:"";display:block;width:280px;height:1px;background:var(--line);margin-top:16px}
+
+/* step tabs — equal width */
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.tabs a{flex:0 0 210px;text-align:center;padding:9px 18px;border-radius:8px 8px 0 0;background:var(--grey);color:var(--ink);text-decoration:none;font-weight:600;font-size:.9rem}
+.tabs a.on{background:var(--navy);color:#fff}
+.tabs a.soon{opacity:.6}
+
+/* cards */
+.card{background:var(--cardbg);border:1px solid var(--line);border-radius:8px;margin-bottom:18px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.cardhead{background:var(--navy);color:#fff;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:11px 20px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.cardhead .sub{text-transform:none;letter-spacing:0;font-weight:400;opacity:.85}
+.cardbody{padding:14px 20px 18px}
+details.card>summary{list-style:none;cursor:pointer}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary .arrow{display:inline-block;transition:transform .15s;margin-right:8px}
+details.card[open]>summary .arrow{transform:rotate(90deg)}
+
+/* announcement + warnings */
+.banner{background:var(--info-bg);border-left:4px solid var(--info);color:var(--info);font-weight:600;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:.88rem;line-height:1.6}
+.warning{background:var(--warn-bg);border-left:4px solid var(--warn);color:var(--warn);font-weight:600;padding:8px 12px;border-radius:6px;margin:6px 0;font-size:.86rem}
+
+/* tables: rounded, ticks outside in a gutter column (td.gut / th.gut) */
+table.tk{width:100%;border-collapse:separate;border-spacing:0;font-size:.86rem}
+table.tk td,table.tk th{padding:7px 10px;border-bottom:1px solid var(--grey);background:#fff}
+table.tk th{background:var(--secrow);color:var(--teal);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;text-align:left}
+table.tk .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.tk .gut{background:transparent!important;border:none!important;width:34px;padding:0 8px 0 0;text-align:center;vertical-align:middle}
+table.tk .gut input{width:16px;height:16px;accent-color:var(--green);cursor:pointer;margin:0}
+table.tk tr>*:nth-child(2){border-left:1px solid var(--grey)}
+table.tk tr>*:last-child{border-right:1px solid var(--grey)}
+table.tk thead tr>*:not(.gut){border-top:1px solid var(--grey)}
+table.tk thead tr>*:nth-child(2){border-top-left-radius:8px}
+table.tk thead tr>*:last-child{border-top-right-radius:8px}
+table.tk tbody tr:last-child>*:nth-child(2){border-bottom-left-radius:8px}
+table.tk tbody tr:last-child>*:last-child{border-bottom-right-radius:8px}
+table.tk tr.sec>*:not(.gut){background:var(--secrow);font-weight:700;color:var(--teal);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+table.tk tr.tot>*:not(.gut){font-weight:700;background:var(--total)}
+table.tk tr.grand>*:not(.gut){background:var(--grand);font-weight:800;color:var(--navy);border-top:2px solid var(--line)}
+table.tk tr.vok>*:not(.gut){background:var(--ok)}
+table.tk tr.tot.vok>*:not(.gut){background:var(--ok-total)}
+
+/* amounts */
+input.amt{width:120px;text-align:right;padding:5px 8px;border:1px solid var(--grey);border-radius:5px;font:inherit;font-variant-numeric:tabular-nums;background:#fff;color:var(--ink)}
+input.amt.chg{background:var(--changed-bg);color:var(--changed-text);font-weight:400}
+.neg{color:inherit}
+
+/* buttons */
+button,a.btn{display:inline-block;border:none;border-radius:8px;padding:10px 22px;font-size:.95rem;font-weight:600;cursor:pointer;text-decoration:none;font-family:inherit}
+button.inbtn{background:var(--mint);color:var(--green);font-weight:700;min-width:190px}
+button.inbtn:hover{background:var(--mint-hover)}
+button.botbtn,a.btn.botbtn{background:var(--teal);color:#fff;min-width:200px}
+button.botbtn:hover,a.btn.botbtn:hover{background:var(--green)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}

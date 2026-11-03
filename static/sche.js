@@ -46,9 +46,7 @@
     document.getElementById('propPick').innerHTML = Array.from({length: nSch()}, (_, s) =>
       `<button type="button" class="tabbtn ${s === SCH ? 'on' : ''}" data-s="${s}">Schedule E ${s + 1}${own(s)}${
         PROPS.slice(s * PER, s * PER + PER).some(p => p.calculated) ? ' ✓' : ''}</button>`).join('')
-      + `<button type="button" class="tabbtn add" data-add="1">+ Add property</button>
-         <button type="button" class="tabbtn add pickbtn" data-import="1">Import Schedule E sheet…</button>
-         <a class="tabbtn add" href="/sche/template.xlsx">Blank template</a> <span id="impMsg" class="note"></span>`;
+      + `<button type="button" class="tabbtn add" data-add="1">+ Add property</button>`;
     const os = ps.map(p => p ? calc(p) : null);
     const head = `<tr><th>Line</th><th>Description</th>${idx.map((j, i) => `<th class="n">${ps[i] !== undefined ? 'Property ' + (j + 1) : ''}${ps[i] && ps[i].calculated ? ' ✓' : ''}</th>`).join('')}</tr>`;
     const info = `
@@ -98,7 +96,6 @@
 
   document.getElementById('propPick').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.import) { importSheet(); return; }
     if (b.dataset.add) { PROPS.push({name: '', py: null, cy: {}, info: {}}); SCH = nSch() - 1; save(); }
     else SCH = +b.dataset.s;
     render();
@@ -133,6 +130,7 @@
 
   // ---------- import the standard Schedule E sheet (one row per property; Schedule E # (tab, 6 per tab) / Owner group them)
   const key = n => String(n || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\b(avenue|ave|street|st|drive|dr|road|rd|place|pl|north|n|south|s|east|e|west|w)\b/g, '').replace(/\s+/g, ' ').trim();
+  window.importScheSheet = () => importSheet();         // the "Import Schedule E" button
   async function importSheet() {
     const msg = document.getElementById('impMsg'); msg.textContent = 'Choose the Schedule E sheet (.xlsx / .csv)…';
     const j = await browse('sheet');

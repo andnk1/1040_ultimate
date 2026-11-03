@@ -1,7 +1,7 @@
 {# UT (UltraTax) summary - the "Watch" window, filled from the income summary. Every field can be typed over;
    clear a field to go back to the calculated amount. Not in the Excel file. #}
 <div class="card utcard noprint" id="utCard">
-  <div class="cardhead">UT summary <span class="sub">{{ inc.cy_year }} estimate</span></div>
+  <div class="cardhead">UT summary <span class="sub">estimate</span></div>
   <div class="cardbody">
     <div class="utfs">Filing status
       <select id="utFs">
@@ -10,10 +10,6 @@
       </select>
     </div>
     <table class="v ut" id="utTable"></table>
-    <p class="note">Blue = calculated from the income summary · green = typed by you (clear the box to recalculate) · white = enter.
-      {{ inc.cy_year }} brackets and standard deduction; tax uses the qualified dividend / capital gain rates. Not included:
-      AMT, 65+/blind and senior deductions, QBI wage limits above the threshold, Add'l Medicare tax. Total Income includes
-      IRA, pensions, 85% of Social Security and other income. SE tax caps the 12.4% part using W-2 wages.</p>
   </div>
 </div>
 <script>
@@ -54,8 +50,7 @@ document.addEventListener('DOMContentLoaded', function () {
   fsSel.value = SAVED._fs || guess(PYFS);
 
   const tb = document.getElementById('utTable');
-  const MK = window.MARKS || {};
-  tb.innerHTML = F.map(([id, l, k]) => `<tr class="${BOLD.has(id) ? 'utb' : ''}"><td><span class="rowck"><input type="checkbox" data-mk="ut|${id}" title="Reviewed" ${MK['ut|' + id] ? 'checked' : ''}></span>${l}</td><td class="n">
+  tb.innerHTML = F.map(([id, l, k]) => `<tr class="${BOLD.has(id) ? 'utb' : ''}"><td>${l}</td><td class="n">
     <input class="utamt utin ${k === 'c' ? 'auto' : ''}" data-ut="${id}" data-kind="${k}"></td></tr>`).join('');
   const f0 = x => Number(x).toLocaleString('en-US', {maximumFractionDigits: 0});
   const box = id => tb.querySelector(`input[data-ut="${id}"]`);

@@ -24,6 +24,7 @@ INSTRUCTIONS = [
     "(masked; long documents contain only the pages listed).",
     "Documents with goes_to_ai = false are NOT in this folder on purpose. Do not ask for them unless a finding needs one.",
     "The Karbon organizer is not in the folder: its questions and answers are in 'karbon'.",
+    "The client summary (if any) is not in the folder: its items are in 'client_summary'.",
     "Carryovers: 'checked' = already reviewed by the preparer.",
     "Still yours to do: carryforward / continuity checks, K-1 basis / at-risk / passive / excess-business-loss limits, "
     "reasonableness and missed deductions / credits.",
@@ -72,7 +73,9 @@ def build(r: dict, inc: dict, to_ai: dict, mask_results: list | None, ded: dict 
     carry = dict(
         summary=[dict(c, checked=bool(marks.get(f"cs{i}"))) for i, c in enumerate(C.get("summary", []))],
         from_forms=[dict(c, checked=bool(marks.get(f"cf{i}"))) for i, c in enumerate(C.get("from_forms", []))],
-        check_for=[dict(c, checked=bool(marks.get(f"cc{i}"))) for i, c in enumerate(C.get("checks", []))])
+        check_for=[dict(c, checked=bool(marks.get(f"cc{i}"))) for i, c in enumerate(C.get("checks", []))],
+        added_by_preparer=[dict(item=a.get("item", ""), activity=a.get("activity", ""), amount=a.get("amount"), note=a.get("note", ""),
+                                checked=bool(marks.get("ca|" + str(a.get("id"))))) for a in (r.get("carry_added") or [])])
     K = r.get("karbon")
     karbon = None
     if K:
@@ -80,6 +83,12 @@ def build(r: dict, inc: dict, to_ai: dict, mask_results: list | None, ded: dict 
                       answered=[dict(question=q["question"], answer=q["answer"], checked=bool(marks.get(f"k{i}")))
                                 for i, q in enumerate(K.get("shown", []))],
                       answered_no_or_blank=len(K.get("questions", [])) - len(K.get("shown", [])))
+    CS = r.get("clientsum")
+    client_summary = None
+    if CS and CS.get("items"):
+        client_summary = dict(file=CS.get("file"),
+                              items=[dict(title=x.get("title", ""), text=x.get("text", ""), checked=bool(marks.get(f"cl{i}")))
+                                     for i, x in enumerate(CS["items"])])
     schc = [dict(name=b.get("name"), schedule_c_lines=b.get("final") or b.get("cy"), typed_by_preparer=b.get("cy"), totals=b.get("totals"),
                  prior_year=b.get("py"),
                  pl=dict(file=(b.get("pl") or {}).get("file"), net_income=(b.get("pl") or {}).get("net_income"),
@@ -106,7 +115,7 @@ def build(r: dict, inc: dict, to_ai: dict, mask_results: list | None, ded: dict 
                                current_year_total=(ded or {}).get("cy_total")),
         client_comments=(r.get("comments") or {}).get("client", ""),
         received_comments=dict((r.get("comments") or {}).get("recv") or {}, note=(r.get("comments") or {}).get("recv_note", "")),
-        schedule_c=schc, schedule_e=r.get("sche") or [], carryovers=carry, karbon=karbon,
+        schedule_c=schc, schedule_e=r.get("sche") or [], carryovers=carry, karbon=karbon, client_summary=client_summary,
         documents=docs, documents_for_ai=in_folder)
 
 
@@ -116,14 +125,14 @@ def to_markdown(rep: dict) -> str:
     L = [f"# 1040 Ultimate — AI report ({rep['tax_year']})", f"Generated {rep['generated']}", "", "## Instructions for the AI"]
     L += [f"- {x}" for x in rep["instructions"]]
     if rep.get("client_comments"):
-        L += ["", "## Client comments (preparer)", rep["client_comments"]]
+        L += ["", "## Return comments (preparer)", rep["client_comments"]]
     py = rep["prior_year_return"]
     L += ["", f"## Prior-year return ({rep['prior_year']})", f"- File: {py['file']} · {py['software']} · {py['pages']} pages",
           f"- Filing status: {py.get('filing_status') or '?'} · Dependents: {py.get('dependents') if py.get('dependents') is not None else '?'}",
           "- Forms filed: " + ", ".join(f["form"] for f in py.get("forms_filed") or [])]
     inc = rep["income_summary"]
-    L += ["", "## Income summary", "Per document = as the program read it; per preparer = what goes on the return.",
-          f"| Document | {rep['prior_year']} | {rep['tax_year']} per document | {rep['tax_year']} per preparer | Fed. withholding | Status | Note |",
+    L += ["", "## Income summary", "Per document = as the program read it; corrected amount = what goes on the return.",
+          f"| Document | {rep['prior_year']} | {rep['tax_year']} per document | {rep['tax_year']} corrected amount | Fed. withholding | Status | Note |",
           "|---|---:|---:|---:|---:|---|---|"]
     for s in inc["sections"]:
         for x in s["rows"]:
@@ -149,15 +158,22 @@ def to_markdown(rep: dict) -> str:
         L.append(f"- [{'x' if c['checked'] else ' '}] {c['form']} {c['unit']} {c['activity']} — {c['description']}: {m(c['amount'])}")
     for c in C["from_forms"]:
         L.append(f"- [{'x' if c['checked'] else ' '}] {c['item']} {c['activity']}: {m(c['amount'])} ({c['source']})")
+    for c in C.get("added_by_preparer") or []:
+        L.append(f"- [{'x' if c['checked'] else ' '}] {c['item']} {c['activity']}: {m(c['amount'])} (added by the preparer{': ' + c['note'] if c['note'] else ''})")
     for c in C["check_for"]:
         L.append(f"- [{'x' if c['checked'] else ' '}] Check for the {c['item']} — {c['form']}")
-    if not (C["summary"] or C["from_forms"] or C["check_for"]):
+    if not (C["summary"] or C["from_forms"] or C["check_for"] or C.get("added_by_preparer")):
         L.append("- No carryover summary page found.")
     K = rep.get("karbon")
     if K:
         L += ["", f"## Karbon organizer ({K['title']})", f"{K['answered_no_or_blank']} questions answered No or left blank (not listed)."]
         for q in K["answered"]:
             L.append(f"- [{'x' if q['checked'] else ' '}] **{q['question']}** — {q['answer'].replace(chr(10), ' / ')}")
+    CS = rep.get("client_summary")
+    if CS:
+        L += ["", f"## Client summary ({CS['file']})"]
+        for x in CS["items"]:
+            L.append(f"- [{'x' if x['checked'] else ' '}] " + (f"**{x['title']}** — " if x["title"] else "") + x["text"])
     L += ["", "## Documents", "| File | Type | Program read | Goes to AI | Pages for AI | Note |", "|---|---|---|---|---|---|"]
     for d in rep["documents"]:
         L.append(f"| {d['file']} | {d['type']} | {d['program_read']} | {'yes' if d['goes_to_ai'] else 'no'} | "

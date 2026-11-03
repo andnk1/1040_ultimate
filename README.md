@@ -34,7 +34,7 @@ Double-click **run.bat** (installs flask, pdfplumber, pymupdf, openpyxl the firs
 ## Two modes
 | Mode | Inputs | Status |
 |---|---|---|
-| **Create summary** | prior-year return + documents folder | Step 1 built |
+| **1040 Preparation tool** (summary) | prior-year return + documents folder | Step 1 built |
 | **Verify return** | the same + current-year return | later |
 
 ## Folders
@@ -42,11 +42,11 @@ Double-click **run.bat** (installs flask, pdfplumber, pymupdf, openpyxl the firs
 - `Claude_1040_skill\<Client_Year>\` — what the AI gets: the AI report + masked pages only (step 5-6).
 
 ## Screens
-1. **Summary** — pick the prior-year return and the documents (Add documents… / Add all files in a folder…; untick to skip), click **Run check**.
+1. **Summary** — pick the prior-year return and the documents (Add documents… / Add a folder…; untick to skip), click **Run check**.
    - **Income summary** in the office template layout: Document/s | PY | CY Federal | ST#1-3 | Notes.
      PY totals come from the prior-year return (1040, Schedule D lines 7 / 15, Schedule E lines 26 / 32, Schedule C line 31;
-     UltraTax Two Year Comparison fills gaps). CY amounts come from the documents in the next step; Schedule C fills in from the Schedule C box. **Other income** (Koinly Schedule 1, 1099-MISC, 1099-G) sits under Schedule C with the note "Entered as Other income". ST#1 repeats the federal amount; ST#2 / ST#3 stay empty.
-   - On last year's return — not received (only the ones still missing; ✓ verified + a comment per payer, and a note) · Forms filed last year · Carryovers (own box)
+     UltraTax Two Year Comparison fills gaps). CY amounts come from the documents in the next step; Schedule C fills in from the Schedule C box. **Other income** (Schedule 1 lines 8v / 8z, 1099-MISC, 1099-G) sits under Schedule C with the note "Entered as Other income". ST#1 repeats the federal amount; ST#2 / ST#3 stay empty.
+   - **Prior Year Return** box: Carryovers from Prior Year · On last year's return — not received (only the ones still missing; ✓ verified + a comment per payer, and a note) · Forms filed last year
    - Document inventory (top) — see below
    - Schedule C (click to open) — PY soft-entered; 24b = deductible meals only; line 30 home office used only with a profit, capped at line 29.
 2. **Mask info for AI agent** — pick documents one by one (PDF, Word, Excel, text, pictures …), check the person tabs
@@ -59,10 +59,10 @@ Double-click **run.bat** (installs flask, pdfplumber, pymupdf, openpyxl the firs
 ## What the program reads (2025 column)
 | Document | Read | Goes to |
 |---|---|---|
-| W-2 | box 1 / box 2 only from labels with the IRS box names (table or list layout); a summary page without box names is not read; copies B/2/C counted once; several W-2s in one file added; box 12 DD noted | W-2 |
+| W-2 | box 1 / box 2 only from labels with the IRS box names (table or list layout); a summary page without box names is not read; copies B/2/C counted once; several W-2s in one file added; box 12 DD noted. Every other box (a–f, 3–14, state 15–17 and local 18–20 rows, as printed) is read for the W-2 form view (table layouts, e.g. ADP / IRS); an ADP "box 12 or 14 overflow" page joins the W-2 before it. A W-2 printed as a picture (no text) is not read | W-2 |
 | 1099 composite / 1099-INT / DIV / B / MISC / OID — Schwab, Fidelity / National Financial, M1, Robinhood, Apex-style | INT 1+3, OID; DIV 1a (1b noted), 2a → LT; 1099-B Total short-/long-term gain (or the reported / not-reported rows); §1256 aggregate split 60/40; MISC 3 + 8 → Other income, MISC 2 → Rental & royalties | Interest, Dividends, LT, ST, Other, Rental |
-| Koinly Schedule D | lines 7 / 15, or column (h) of lines 1-6 / 8-14 when 7 / 15 are blank | ST, LT |
-| Koinly Schedule 1 | line 9 or the line 8 amounts | Other income |
+| Schedule D (Form 1040) on its own — a crypto report (Koinly or any other program), recognized from the form | read like a 1099-B: one row per Form 8949 box from lines 1a / 1b, 2, 3 (ST) and 8a / 8b, 9, 10 (LT) — proceeds, cost, adjustments, gain in the comment; lines 4–6, 11–14 and the totals 7 / 15 are left out (other documents carry them) | ST, LT |
+| Schedule 1 (Form 1040) on its own | only line 8v (digital assets received as ordinary income) and line 8z (other income, the type listed in the comment) — one row each | Other income |
 | K-1 (1065) | via the K-1 Interpretation parser: 5 interest, 6a dividends, 8 ST, 9a+10 LT, 2+3+7 rental, 1+GP+11 ordinary | per K-1 rows |
 | 1099-MISC (IRS layout, e.g. Coinbase) | amounts by position in the box: 1 rents + 2 royalties → Rental, 3 + 8 → Other, 4 withholding | Rental, Other |
 | 1099-NEC (IRS layout) | 1a / 1 → Schedule C (memo); 1b cash tips, 1d overtime, 3 golden parachute → Other with the box named; 4 withholding | Sch C, Other |
@@ -72,6 +72,7 @@ Double-click **run.bat** (installs flask, pdfplumber, pymupdf, openpyxl the firs
 | List layout (W-2, 1099-R, 1099-SA) | the IRS boxes one per line ("1 Gross distribution ...... 450.49"): read when the box number and the IRS box name match; W-2 box 12 lines too | — |
 | Box-list summary pages (e.g. Morgan Stanley stock plan: "1a. TOTAL ORDINARY DIVIDENDS ... $x", 1099-DIV and 1099-B side by side) | each row's box number + amount, the form taken from the heading above the column; used when the regular composite reader doesn't read the file. A 1099-B summary with sales but no short / long-term split is flagged | Dividends / gains |
 | 1098-E | box 1 student loan interest (box 2 noted) | Deduction summary |
+| 1098 (mortgage) — lender print or IRS blank | box 1 → Mortgage interest; comment: box 2, box 10 (as printed, e.g. Real estate taxes), boxes 4 / 5 / 6 when not 0, box 8 property (or box 7 checked); copies counted once | Deduction summary |
 | 1099-R, SSA-1099 | 2a taxable (IRA box → IRA, else pension) · box 5 net benefits | IRA / Pension · Social Security |
 Checks: 1b ≤ 1a; 1099-B gain = proceeds − cost + wash sale; a form section printed but not read → "Partly read". Anything not read → red row, AI review.
 Tax-exempt interest, nondividend distributions, foreign tax, qualified dividends go in the Notes column (memo).
@@ -81,41 +82,60 @@ A file with one 1099 form type in its title (IRS blank or a bank's substitute fo
 the payer comes from "Payer's name:" when the issuer isn't on the list.
 Capital gains: one row per Form 8949 box (A-L) when the 1099 prints it (Schwab categories, "basis reported / not reported" rows,
 Robinhood A-L rows, IB "Applicable check box"); capital gain distributions (Sch D 13) and §1256 (6781) get their own rows.
-Koinly Schedule D: box pair by line (1b A/G, 2 B/H, 3 C/I, 8b D/J, 9 E/K, 10 F/L) — the Koinly 8949's X decides 1099-B vs 1099-DA.
+Schedule D: box pair by line (1a / 1b A/G, 2 B/H, 3 C/I, 8a / 8b D/J, 9 E/K, 10 F/L) — a Form 8949 among the documents decides 1099-B vs 1099-DA by its X.
+**File names decide nothing** (they're typed by hand) — the type, issuer and "received this year?" all come from the document's text. Two exceptions: "K-1" in the name sends a file to the K-1 reader (after the text check), and the Karbon organizer.
 
 ## Document inventory (top of screen 1)
-Columns: Verified | File name | Issuer | Year | Program read | Amount | Added to | Note | AI. Sorted: read by the program
-first, then not read — each alphabetical.
+Columns: Verified | File name | Issuer (from the text: a known broker / payroll name on the first two pages, the "Payer's name:" line, or the W-2 employer / 1098 lender the reader found) | Type (W-2, 1099-R, 1099 Composite (DIV, B) …; a wrong tax year in red) | Program read |
+Amount | Added to | Note | AI. Sorted by file name, numbers in number order (2 before 10), numbered names first.
+The section starts closed (arrow), like every section with an arrow.
 - **Read** documents are listed only; their amounts are already on the income summary ("Added to" shows the lines they feed).
 - **Not read** documents take one amount + the income line it goes to (**Added to**). That makes a line on the income summary
-  (file name, amount in **per preparer**, per document blank) and replaces the "NOT READ" row for that file.
+  (file name, amount in **corrected amount**, per document blank) and replaces the "NOT READ" row for that file.
   More amounts from the same document: add them on the income summary with **+**.
 - The small **+** at the bottom of the inventory adds a free line (description, issuer, amount, line, note).
-- **Client comments** (box under the inventory): general notes about the client — kept in the work in progress, shown on
+- **Return Comments** (the box under the step tabs): general notes about the return — kept in the work in progress, shown on
   screen 2, in the review Excel (Checklist sheet) and the AI report.
-- **✓ Verified**: the row turns green; the ticks go into the Excel files (Documents sheet). Screen 2 doesn't flag unticked documents.
+- **✓ Verified**: the row turns light mint; the ticks go into the Excel files (Documents sheet). Screen 2 doesn't flag unticked documents.
 - **AI**: the document goes to the AI (masked) — the masking list on screen 3 follows these ticks. For long documents the AI pages
   are listed in the note.
 
-## Income summary — two 2025 columns
-- **2025 per document** = what the program read (fixed). **2025 per preparer** = what goes on the return: starts as a copy,
+
+## Form tabs (inside the Document inventory)
+Tabs under the Document inventory header, all the same size: **Summary** (the table above), **W2**, then 1098-M, 1098-T, 1099-B,
+1099-Comp, 1099-DA, 1099-DIV, 1099-G, 1099-INT, 1099-NEC, 1099-R (alphabetical; other form types get a tab when the client has one).
+"(2)" after a name = how many; no number when none. **W2** and **1098-M** work — the others say "Form view coming soon".
+- **W2**: always 6 columns + Total on the screen (W-2s 7–12 on W2_2 …); each column headed by the employee name (box e) · the
+  employer's first word (box c); hover shows the full employer name and the EIN. A name the program didn't read shows a message and
+  the file name.
+- Boxes 1–20 (box 12 / 14 / state / local lines when they have an amount; **+** adds one; state and locality on hover), a Total
+  column for all the client's W-2s, a ✓ on every line. Type over a box to correct it (light pink, blue); ↺ goes back to the value read.
+  Box 1 / 2 / 12 changes go to the income summary and Verify after **Refresh the income summary**; an amount typed on the income
+  summary still wins.
+- Excess Social Security check per employee name (2+ W-2s).
+- **1098-M**: the same layout for the mortgage 1098s — header = borrower · first word of the lender (hover: lender, account, file);
+  boxes 1–9 and one line per box 10 description. Changes go to the deduction summary after **Refresh the deduction summary**.
+
+## Income and Deduction Summary — Prior Year · per document · corrected amount
+One box (always open): the income table, then the deduction table. Every other section has an arrow and starts closed.
+- **Prior Year** = from last year's return (comparison). **per document** = what the program read (fixed). **corrected amount** = what goes on the return: starts as a copy,
   yours to change (tax interpretation). Schedule C / E rows, not-read rows, added lines, add-backs and inventory amounts have
-  per preparer only.
+  a corrected amount only.
 - **Fed. w/h**: one column — the program's amount in grey (soft), type over it to change it (green). No withholding = blank.
 - White lines; category totals bold with a thicker line under them (no colour, no side bar), same in the Excel file. Numbers you type or change are blue (not bold). The number columns have equal widths.
 - Nothing is red: negative numbers are plain black everywhere (screens and Excel); the add-back / "minus losses carried over" rows are blue.
 - Whole dollars on screen (nearest dollar); the exact amount is kept until you change the box, and Excel keeps the cents.
-- A per-preparer amount you changed from the document has a yellow background.
-- ✓ on every line and total (also deduction lines, Schedule C / E, UT summary fields, forms filed last year) — kept with the work
-  in progress; ticked lines are listed on the "Reviewed (✓)" sheet of the Save review Excel.
+- A corrected amount you changed from the document has a light pink background and blue text (not bold).
+- ✓ on every line and total (also deduction lines, Schedule C / E, forms filed last year; not the UT summary) — a ticked line turns
+  light mint (a total a shade darker), kept with the work in progress; ticked lines are listed on the "Reviewed (✓)" sheet of the Save review Excel.
 - Lines from the document inventory: amount and name are changed on the inventory; the comment can be typed here too (it is
   the inventory note — both places update).
-- Every row has a comment box. Per preparer is official data: the totals, the UT summary, screen 2, the Excel file and the
+- Every row has a comment box. The corrected amount is official data: the totals, the UT summary, screen 2, the Excel file and the
   AI report use it; the Excel file and the AI report also show per document.
 - **+** next to a category total adds a line (kept for the run; lost when the program restarts).
 
 ## Screens
-1 · Summary → 2 · Verify return → 3 · Mask for AI (only if something is left for a second look) → 4 · AI review.
+1 · Summary → 2 · Verify return → 3 · AI Doc Review → 4 · AI Return Review → 5 · AI Advisory (the three AI pages say what they will do — nothing behind them yet; the Mask page is no longer a step tab). Ticks (✓) sit just left of each table; buttons in the boxes are mint with green bold text, the bottom bar teal (white text). Design rules: `design/DESIGN_RULES.md`.
 
 ## 2 · Verify return
 Two ways — pick the files on this screen (the input screens can also be picked on screen 1):
@@ -135,8 +155,8 @@ UT calculates those):
 - Payments found on the input screens (estimates, state payments) are listed for review.
 - The 2025 return is optional here; with it, forms filed and payers 2024 vs 2025 are shown too.
 **Without the input screens** — pick the finished 2025 return (full UltraTax print package). All by program:
-- Income by category: every screen-1 total (per preparer) vs the return line (1z, 2b, 3b, 4b, 5b,
-  6b, Sch D 7 / 15, Sch 1, Sch E, 25d withholding, Sch 1 line 21 student loan interest); total income line 9.
+- Income by category: every screen-1 total (corrected amount) vs the return line (1z, 2b, 3b, 4b, 5b,
+  6b, Sch D 7 / 15, Sch 1, Sch E, 25d withholding, Sch 1 line 21 student loan interest, Sch A line 8a mortgage interest); total income line 9.
 - Capital gains by Schedule D line (1b / 2 / 3 / 4 / 8b / 9 / 10 / 11 / 13) — the screen-1 rows by Form 8949 box vs the return.
 - Form 8949 boxes: the box checked on each 8949 page vs the box of each 1099 / Koinly row (Koinly B/H etc. resolved from the return).
 - Forms filed, payers / K-1 entities and filing status: 2024 return vs 2025 return.
@@ -147,7 +167,8 @@ line removes it from the master list). **Save review (Excel)…** writes the che
 choose (default: the prior-year return's folder), with the UT check sheet and the Documents sheet (verified ticks).
 
 ## Deduction summary (under the income summary)
-Same layout as the income summary (editable, + to add lines). 1098-E → Student loan interest (2024: Schedule 1 line 21).
+Same layout as the income summary (editable, + to add lines). 1098-E → Student loan interest (Prior Year: Schedule 1 line 21);
+1098 → Mortgage interest (Prior Year: Schedule A line 8a).
 Not in the UT summary. Goes into the Excel file and the AI report.
 
 ## Schedule E sheet (standard template)
@@ -161,7 +182,7 @@ Verify return checks each property line by line: against the UT Rent screens (in
 Only from "Tax Year 2025" / "calendar year 2025" on the document; otherwise the Year column stays blank (never flagged).
 
 ## Document inventory order
-By file name (A-Z); the prior-year return first, free lines last.
+By file name, numbers in number order ("2." before "10."), then A-Z; the prior-year return first, free lines last.
 
 ## Schedule C: total only
 The last line of the Schedule C form, **Enter total only**, takes just the net profit / (loss) when there's no line detail; it
@@ -193,12 +214,12 @@ instead of freezing the program. A hanging document is left out and listed on th
 (`run.bat`) prints each step of Run check; http://127.0.0.1:5067/debug/stacks shows where the program is if it looks stuck.
 
 ## Work in progress (.json)
-Everything on screen 1 is optional: prior-year return, documents, Karbon, UT input screens.
+Everything on screen 1 is optional: prior-year return, client summary (PDF / Word), work in progress, documents (the Karbon organizer goes in with them). The UT input screens are picked on Verify return.
 - Saved automatically as `1040 Ultimate WIP <year> - <last name> <last 4 of SSN>.json` (from the 2024 return page 1; without
   it — or with the SSN masked — the client folder's name). The Excel files use the same client name in the Karbon letter's folder (else the prior-year
   return's folder; with neither, the summary asks you to choose a folder). The first save of a session keeps the previous file
   as `.bak`.
-- Picking the Karbon letter or the prior-year return on screen 1 finds it and asks: **Continue where you left off / Start fresh**.
+- Picking the prior-year return or the client summary on screen 1 finds it and asks: **Continue where you left off / Start fresh**.
   Or browse to it in the "Work in progress" field.
 - Holds your work, not the documents: amounts, comments, ticks, inventory, Schedule C / E, UT summary, checklist, carryover /
   Karbon ticks, the file paths (documents, 2025 return, UT screens). The documents are read again when you continue.
@@ -235,9 +256,16 @@ Federal withholding: 2025 = W-2 box 2, 1099 box 4 (every form section), 1099-R b
 "Forms filed last year" uses the same footer rule now (pages that only mention a form no longer count).
 
 ## Karbon organizer
-Optional picker on the first screen (after the prior-year return), or drop the Karbon "Client Request Summary" PDF in with the documents.
-`core/karbon.py` reads every question and the client's answer; the **Karbon Summary** box (after Carryovers) lists each question whose
+Add the Karbon "Client Request Summary" PDF with the documents — it is recognized (same layout every time); there is no separate picker.
+`core/karbon.py` reads every question and the client's answer; the **Karbon Summary** box (after "not received" / "Forms filed last year") lists each question whose
 answer isn't "No" (unanswered questions are left out). The organizer goes to the AI as context.
+
+- Questions answered just "No" (also Nope / None / N/A) and unanswered questions are left out.
+
+## Client summary
+Optional "Summary (PDF or Word)" picker on the first screen. `core/clientsum.py` turns every bullet point / numbered point / line
+(paragraph) into an item of the **Client Summary** box (after the Karbon Summary), each with a tick box; "Title: text" items show the title
+in bold; number-only lines (source markers) and headings are dropped. The items also go to the AI report (`client_summary`).
 
 ## Hand-off to the AI skill
 - Documents table, column **AI**: ticked = goes to the AI (masked). Default: not read / partly read / context documents and the
@@ -286,10 +314,10 @@ answer isn't "No" (unanswered questions are left out). The organizer goes to the
 | Program | a tax form this program reads (parsers come in step 3) |
 | AI | a tax document the program can't read yet; AI pages lists the pages it gets |
 | Context (AI) | letters, notes, e-mails, other returns — the AI reads them for facts |
-| Excluded | left out on purpose (1099-DA when a Koinly report is present) |
-| Skipped | draft / estimate in the file name, duplicates, the prior-year return itself, unsupported files |
+| Excluded | left out on purpose (1099-DA when a crypto report — Schedule D / 8949 — is present) |
+| Skipped | duplicates, the prior-year return itself, unsupported files (a "draft" / "estimate" file name no longer skips) |
 
-Rules: Koinly takes precedence over any 1099-DA (the 1099-DA is ignored with a note to verify it's in Koinly);
+Rules: a crypto report (Schedule D / Schedule 1 / Form 8949 on their own, Koinly or other) takes precedence over any 1099-DA (the 1099-DA is ignored with a note to verify it's in the report);
 documents over 10 pages send only their summary pages to the AI; a tax year other than PY+1 is flagged red.
 
 - **Schedule C** (click to open) — one panel per business on last year's return, last year's amounts soft-entered in grey.
@@ -302,7 +330,7 @@ documents over 10 pages send only their summary pages to the AI; a tax year othe
 | `app.py` | Web app |
 | `core/inventory.py` | Folder scan, document types, routing rules — edit `ROUTE` / `ISSUERS` here |
 | `core/py_return.py` | Prior-year return: summary, forms, expected documents, carryovers, Schedule C |
-| `core/income.py` | Income summary rows (office template), per document / per preparer |
+| `core/income.py` | Income summary rows (office template), per document / corrected amount |
 | `core/utscreens.py` | UltraTax input screens reader (W2, B&D statements, Rent, C) + document verification |
 | `core/wip.py` | Work in progress file (find / load / autosave / .bak) |
 | `core/sche_template.py` | The standard Schedule E sheet: write (blank / filled) and read for the import |

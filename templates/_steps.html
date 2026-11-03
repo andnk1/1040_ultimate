@@ -1,0 +1,11 @@
+{# The 1040 step tabs, the same on every 1040 page. on = the current page's key. Faded = nothing behind it yet.
+   (The Mask page is no longer a step - 2026-11-02.) #}
+{% macro steps(token, on='') -%}
+<div class="tabs noprint">
+{%- for k, href, label, soon in [('summary', '/summary/', '1 · Summary', False), ('verify', '/verify/', '2 · Verify return', False),
+                                  ('ai', '/ai/', '3 · AI Doc Review', True), ('aireturn', '/ai-return/', '4 · AI Return Review', True),
+                                  ('advisory', '/ai-advisory/', '5 · AI Advisory', True)] %}
+  <a class="{{ 'on' if k == on }}{{ ' soon' if soon and k != on }}" href="{{ href }}{{ token }}">{{ label }}</a>
+{%- endfor %}
+</div>
+{%- endmacro %}

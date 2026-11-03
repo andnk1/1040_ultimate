@@ -17,12 +17,11 @@ def income_xlsx(inc: dict, client: str = "", ded: dict | None = None, docs: list
     bold, red, head = Font(name=F, size=10, bold=True), Font(name=F, size=10, color="C00000"), Font(name=F, size=10, bold=True, color="FFFFFF")
     norm, grey_t = Font(name=F, size=10), Font(name=F, size=10, color="808080", italic=True)
     tot_fill, grand_fill = PatternFill("solid", fgColor="EDEDED"), PatternFill("solid", fgColor="D9D9D9")
-    head_fill, edit_fill = PatternFill("solid", fgColor="003366"), PatternFill("solid", fgColor="FFF2CC")
+    head_fill, edit_fill = PatternFill("solid", fgColor="003366"), PatternFill("solid", fgColor="FDF0F0")
     thin = Side(style="thin", color="9AA3B2")
     ws["A1"] = "Income Summary" + (f" — {client}" if client else "")
     ws["A1"].font = Font(name=F, size=12, bold=True, color="003366")
-    cy = inc.get("cy_year") or "CY"
-    hdr = ["Document/s", str(inc.get("py_year") or "PY"), f"{cy} per document", f"{cy} per preparer", "Fed. W/H", "Comments"]
+    hdr = ["Document/s", "Prior Year", "per document", "corrected amount", "Fed. W/H", "Comments"]
     for c, h in enumerate(hdr, 1):
         cell = ws.cell(row=3, column=c, value=h)
         cell.font, cell.fill = head, head_fill
@@ -46,7 +45,8 @@ def income_xlsx(inc: dict, client: str = "", ded: dict | None = None, docs: list
             elif block:
                 cell.fill = blk_fill
             if (differs and c == 4) or (fit_changed and c == 5):
-                cell.fill = edit_fill
+                cell.fill = edit_fill                          # changed by the preparer: light pink, blue text, not bold
+                cell.font = Font(name=F, size=10, color="1F5FBF", bold=bool(cell.font.b))
             cell.border = Border(bottom=Side(style="medium", color="294F4C") if total else thin)    # a thicker line after each total
             cell.alignment = Alignment(vertical="top", wrap_text=(c in (1, 6)))
         r += 1
@@ -104,17 +104,17 @@ def income_xlsx(inc: dict, client: str = "", ded: dict | None = None, docs: list
 
 
 def documents_sheet(wb, docs: list, title: str = "Documents"):
-    """The document inventory: verified tick, file, issuer, year, read by the program, amount / line, note, AI."""
+    """The document inventory: verified tick, file, issuer, type, read by the program, amount / line, note, AI."""
     ws = wb.create_sheet(title)
     F = "Arial"
     head, head_fill = Font(name=F, size=10, bold=True, color="FFFFFF"), PatternFill("solid", fgColor="003366")
     ok_fill, thin = PatternFill("solid", fgColor="E6F4EA"), Side(style="thin", color="9AA3B2")
-    hdr = ["Verified", "File name", "Issuer", "Year", "Program read", "Amount", "Added to", "Note", "AI"]
+    hdr = ["Verified", "File name", "Issuer", "Type", "Program read", "Amount", "Added to", "Note", "AI"]
     for c, h in enumerate(hdr, 1):
         cell = ws.cell(row=1, column=c, value=h)
         cell.font, cell.fill = head, head_fill
     for i, d in enumerate(docs, 2):
-        vals = ["✓" if d.get("verified") else "", d.get("file"), d.get("issuer"), d.get("year"), d.get("read_lbl"),
+        vals = ["✓" if d.get("verified") else "", d.get("file"), d.get("issuer"), d.get("type"), d.get("read_lbl"),
                 d.get("cy"), d.get("sec_lbl") or d.get("feeds"), d.get("note"), "✓" if d.get("ai") else ""]
         for c, v in enumerate(vals, 1):
             cell = ws.cell(row=i, column=c, value=v)

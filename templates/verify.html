@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+{% from '_steps.html' import steps %}
 {% macro money(v) -%}{%- if v is none -%}{%- else -%}{{ "{:,.0f}".format(v) }}{%- endif -%}{%- endmacro %}
 {% macro tick(k) -%}<input type="checkbox" data-mk="{{ k }}" title="Reviewed" {{ 'checked' if r.marks.get(k) }}>{%- endmacro %}
 {% macro cmt(k) -%}<input class="txt mkn" data-mk="{{ k }}" value="{{ r.marks.get('n|' ~ k, '') }}" placeholder="Comment">{%- endmacro %}
@@ -16,33 +17,25 @@
 {% macro pill(s) -%}{% set p = ST.get(s, ('new', s)) %}<span class="pill {{ p[0] }}">{{ p[1] }}</span>{%- endmacro %}
 <div class="wrap">
   <h1>Verify return</h1>
-  <p class="subtitle">With the UltraTax input screens: every line on screen 1 against what was entered in UT. Without them: the finished 2025 return against screen 1. Then your checklist.</p>
 
-  <div class="tabs noprint">
-    <a href="/summary/{{ token }}">1 · Summary</a>
-    <a class="on" href="/verify/{{ token }}">2 · Verify return</a>
-    <a href="/mask/{{ token }}">3 · Mask for AI (if needed)</a>
-    <a class="soon" href="/ai/{{ token }}">4 · AI review</a>
-  </div>
+  {{ steps(token, 'verify') }}
 
   <div class="card">
-    <div class="cardhead">What to check <span class="sub">UltraTax input screens → line-by-line check · 2025 return only → the return-based check</span></div>
+    <div class="cardhead">What to check</div>
     <div class="cardbody">
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
       {% if ut_error %}<div class="error">{{ ut_error }}</div>{% endif %}
       <div class="field filef"><label>UltraTax input screens (PDF)</label>
         <div class="pick"><input id="ut" value="{{ ut_path }}" placeholder="C:\…\input screens.pdf">
           <button type="button" class="light small pickbtn" onclick="pick('ut')">Browse…</button></div></div>
-      <div class="field filef"><label>2025 return (PDF) — optional with the input screens</label>
-        <div class="pick"><input id="cy" value="{{ cy_path }}" placeholder="C:\…\2025 return.pdf">
+      <div class="field filef"><label>Current-year return (PDF) — optional with the input screens</label>
+        <div class="pick"><input id="cy" value="{{ cy_path }}" placeholder="C:\…\return.pdf">
           <button type="button" class="light small pickbtn" onclick="pick('cy')">Browse…</button></div></div>
       <div class="field filef"><button type="button" onclick="runCheck()" id="go">Check</button>
         <p class="hint"><span id="pickMsg"></span> <span id="wait" class="hidden">Reading…</span></p></div>
       {% if r.ut_scr %}<p class="note">Input screens: <b>{{ r.ut_scr.file }}</b> · {{ r.ut_scr.pages }} pages · {{ r.ut_scr.entries|length }} income entries ·
         {{ r.ut_scr.payments|length }} payments.</p>{% endif %}
       {% if r.cy_ret %}<p class="note">Return: <b>{{ r.cy_ret.file }}</b> · {{ r.cy_ret.pages }} pages · filing status {{ r.cy_ret.filing_status or '?' }}.</p>{% endif %}
-      {% if r.ut_scr or r.cy_ret %}<p class="note">Amounts on screen 1 count as they are now (per preparer: what the program read, what you changed, every line you added)
-        — change them there and come back.</p>{% endif %}
     </div>
   </div>
 
@@ -56,9 +49,9 @@
   </div>
 
   <div class="card">
-    <div class="cardhead">1 · Document verification <span class="sub">every box read from the documents (and every line you typed) vs the UltraTax entry — line by line, within $1 · red = data entry · yellow = you changed the document amount</span></div>
+    <div class="cardhead">1 · Document verification</div>
     <div class="cardbody"><table class="v dv">
-      <tr><th class="ck">✓</th><th>Group</th><th>Document</th><th>Box / line</th><th class="n">Per document</th><th class="n">Per preparer</th><th class="n">Per UT</th><th>UT screen</th><th>Status</th><th>Comment</th></tr>
+      <tr><th class="ck">✓</th><th>Group</th><th>Document</th><th>Box / line</th><th class="n">Per document</th><th class="n">Corrected amount</th><th class="n">Per UT</th><th>UT screen</th><th>Status</th><th>Comment</th></tr>
       {% for x in ut.lines %}{% set k = 'v|' ~ x.key %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status == 'red' else 'ambrow' if x.status == 'amber' }}" data-mk="{{ k }}">
         <td class="ck">{{ tick(k) }}</td>
         <td class="note">{{ x.group }}</td><td>{{ x.doc }}{% if x.inv %} <span class="note">(inventory)</span>{% elif x.added %} <span class="note">(added)</span>{% endif %}</td>
@@ -71,13 +64,11 @@
         <td>{% if x.note %}<div class="note">{{ x.note }}</div>{% endif %}{{ cmt(k) }}</td></tr>{% endfor %}
       {% if not ut.lines %}<tr><td colspan="10" class="note">Nothing to verify — no amounts on screen 1.</td></tr>{% endif %}
     </table>
-    <p class="note">UltraTax rounds each entry to whole dollars — within $1 ties. One document amount entered in UT in pieces (or one UT entry for several
-      document lines, like §1256 60% / 40%) ties when the pieces add up. Totals and net amounts are not checked — UT calculates them.
-      ✓ = reviewed; type a comment on any line — both are kept with the work in progress and go into the Save review Excel.</p></div>
+</div>
   </div>
 
   <div class="card">
-    <div class="cardhead">2 · UltraTax entries with no document <span class="sub">entered in UT, nothing on screen 1 behind them</span></div>
+    <div class="cardhead">2 · UltraTax entries with no document</div>
     <div class="cardbody">{% if ut.back %}<table class="v">
       <tr><th class="ck">✓</th><th>UT screen</th><th>Entry</th><th>What</th><th class="n">Amount</th><th>Page</th><th>Comment</th></tr>
       {% for x in ut.back %}{% set k = 'v|' ~ x.key %}<tr class="mk{{ ' done' if r.marks.get(k) else ' badrow' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td>
@@ -87,7 +78,7 @@
 
   {% if ut.payments %}
   <div class="card">
-    <div class="cardhead">Payments on the input screens <span class="sub">for your review — not matched to documents</span></div>
+    <div class="cardhead">Payments on the input screens</div>
     <div class="cardbody"><table class="v">
       <tr><th class="ck">✓</th><th>Screen</th><th>Kind</th><th>Line</th><th class="n">Amount</th><th>Page</th></tr>
       {% for x in ut.payments %}{% set k = 'pay|' ~ x.screen ~ '|' ~ x.page ~ '|' ~ x.label ~ '|' ~ x.amount %}<tr class="mk{{ ' done' if r.marks.get(k) }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.screen }}</td><td>{{ x.kind }}</td><td>{{ x.label }}</td><td class="n">{{ money(x.amount) }}</td><td>{{ x.page }}</td></tr>{% endfor %}
@@ -107,15 +98,15 @@
   </div>
 
   <div class="card">
-    <div class="cardhead">1 · Income by category <span class="sub">screen 1 totals vs the return</span></div>
+    <div class="cardhead">1 · Income by category</div>
     <div class="cardbody"><table class="v">
       <tr><th class="ck">✓</th><th>Category</th><th>Return line</th><th class="n">Documents</th><th class="n">Return</th><th class="n">Difference</th><th>Status</th></tr>
       {% for x in checks.cats %}{% set k = 'rc|' ~ x.cat %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status in ['diff','missing'] }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.cat }}</td><td class="note">{{ x.line }}</td>
         <td class="n">{{ money(x.docs) }}</td><td class="n">{{ money(x.ret) }}</td><td class="n">{{ money(x.diff) }}</td><td>{{ pill(x.status) }}</td></tr>{% endfor %}
-      {% for x in checks.status %}{% set k = 'rs|' ~ x.item %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status in ['diff','changed'] }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.item }}</td><td class="note">2024: {{ x.py if x.py is not none else '' }}</td>
+      {% for x in checks.status %}{% set k = 'rs|' ~ x.item %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status in ['diff','changed'] }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.item }}</td><td class="note">Prior Year: {{ x.py if x.py is not none else '' }}</td>
         <td class="n">{{ money(x.docs) if x.docs is defined and x.docs is number }}</td><td class="n">{{ money(x.cy) if x.cy is number else x.cy }}</td><td></td><td>{{ pill(x.status) if x.status }}</td></tr>{% endfor %}
     </table>
-    <p class="note">Ties = within rounding (UltraTax rounds each entry to whole dollars). "Return only" = on the return, no document read for it on screen 1.</p></div>
+</div>
   </div>
 
   <div class="card">
@@ -143,14 +134,14 @@
   {% if checks %}
   <div class="grid3">
   <div class="card">
-    <div class="cardhead">{{ '4' if ut else '3' }} · Forms filed <span class="sub">2024 vs 2025</span></div>
+    <div class="cardhead">{{ '4' if ut else '3' }} · Forms filed <span class="sub">Prior Year vs Current Year</span></div>
     <div class="cardbody"><table class="v">
       {% for x in checks.forms|sort(attribute='status', reverse=True) %}{% set k = 'form|' ~ x.form %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status == 'missing' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.form|replace('Form ', '')|replace('Schedule ', 'Sch ') }}</td>
         <td class="note">{{ x.short }}</td><td>{{ pill(x.status) }}</td></tr>{% endfor %}
-    </table><p class="note">Not filed this year = on the 2024 return, not on 2025 — confirm it's really gone (carryover, sold, closed).</p></div>
+    </table></div>
   </div>
   <div class="card">
-    <div class="cardhead">Payers / K-1 entities <span class="sub">2024 vs 2025</span></div>
+    <div class="cardhead">Payers / K-1 entities <span class="sub">Prior Year vs Current Year</span></div>
     <div class="cardbody">{% if checks.payers %}<table class="v">
       {% for x in checks.payers|sort(attribute='status', reverse=True) %}{% set k = 'payer|' ~ x.kind ~ '|' ~ x.name %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status == 'missing' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.kind }}</td><td>{{ x.name }}</td><td>{{ pill(x.status) }}</td></tr>{% endfor %}
     </table>{% else %}<p class="note">No payers listed on either return (Schedule B, wages report, K-1 worksheets).</p>{% endif %}</div>
@@ -161,30 +152,30 @@
       {% for x in checks.perdoc %}{% set k = 'rp|' ~ x.doc %}<tr class="mk{{ ' done' if r.marks.get(k) }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.doc }}<div class="note">{{ money(x.amount) }}{% if x.source != 'read by program' %} · <b class="mine">{{ x.source }}</b>{% endif %}</div>
         {% if x.change %}<div class="note mine">{{ x.change }}</div>{% endif %}</td>
         <td>{% if x.found %}<span class="pill yes">p. {{ x.pages|join(', ') }}</span>{% else %}<span class="pill new">Not found</span>{% endif %}</td></tr>{% endfor %}
-    </table><p class="note">The rounded amount printed anywhere on the return (statements, 8949, schedules). "Not found" isn't an error by itself — it may be combined with others.</p></div>
+    </table></div>
   </div>{% endif %}
   </div>
   {% endif %}
 
   {% if r.comments.client %}
-  <div class="banner">Client comments: <span style="font-weight:400;white-space:pre-wrap">{{ r.comments.client }}</span></div>
+  <div class="banner">Return Comments: <span style="font-weight:400;white-space:pre-wrap">{{ r.comments.client }}</span></div>
   {% endif %}
   {% if checks and checks.sche %}
   <div class="card">
-    <div class="cardhead">Schedule E — each property, each line <span class="sub">Schedule E box vs Schedule E page 1 of the 2025 return</span></div>
+    <div class="cardhead">Schedule E — each property, each line</div>
     <div class="cardbody"><table class="v">
       <tr><th class="ck">✓</th><th>Property (box)</th><th>On the return</th><th>Line</th><th class="n">Box</th><th class="n">Return</th><th class="n">Difference</th><th>Status</th></tr>
       {% for x in checks.sche %}{% set k = 're|' ~ x.prop ~ '|' ~ x.line %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if x.status != 'ok' }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.prop }}</td><td class="note">{{ x.ret_prop }}</td>
         <td>{{ x.line }} {{ x.label }}</td><td class="n">{{ money(x.box) }}</td><td class="n">{{ money(x.ret) }}</td><td class="n">{{ money(x.diff) }}</td>
         <td>{{ pill('ok' if x.status == 'ok' else ('return only' if x.status == 'return only' else ('missing' if x.status == 'missing' else 'diff'))) }}</td></tr>{% endfor %}
-    </table><p class="note">Properties are matched by address (or by the rents when the address differs). Within $1 ties.</p></div>
+    </table></div>
   </div>
   {% endif %}
 
   {% set memo_ut = [] %}{% set memo_ret = checks.memo if checks else [] %}
   {% if memo_ut or memo_ret %}
   <div class="card">
-    <div class="cardhead">1095-A / 1098-T <span class="sub">not income — checked on their own</span></div>
+    <div class="cardhead">1095-A / 1098-T</div>
     <div class="cardbody"><table class="v">
       <tr><th class="ck">✓</th><th>Form</th><th>Document</th><th>What</th><th class="n">Amount</th>{% if memo_ut %}<th class="n">Per UT</th><th>UT screen</th>{% endif %}{% if memo_ret %}<th>On the return</th>{% endif %}<th>Status</th></tr>
       {% for x in (memo_ut or memo_ret) %}{% set rx = memo_ret[loop.index0] if memo_ret and memo_ut else (x if memo_ret else none) %}
@@ -196,17 +187,17 @@
           {% if rx and memo_ut and rx.status != 'found' %}<div class="note">return: {{ rx.status }}</div>{% endif %}
           {% if st not in ['ok', 'found'] %}<div class="note">{{ st }}</div>{% endif %}</td></tr>
       {% endfor %}
-    </table><p class="note">1095-A: line 33 column C (advance premium tax credit) → Form 8962 line 25. 1098-T: box 1 / box 5 → Form 8863. UT rounds to whole dollars.</p></div>
+    </table></div>
   </div>
   {% endif %}
 
   {# ------------------------------------------------ checklist #}
   <div class="card">
-    <div class="cardhead">Checklist <span class="sub">tick as you go · + adds a line · Stays Y = on the master list for every client, N = this return only</span></div>
+    <div class="cardhead">Checklist</div>
     <div class="cardbody">
       <table class="v" id="clTable"></table>
       <div class="bar noprint">
-        <button type="button" class="alt small" onclick="addItem()">+ Add a line</button>
+        <button type="button" onclick="addItem()">+ Add a line</button>
         <span id="clMsg" class="note"></span>
       </div>
     </div>
@@ -216,7 +207,8 @@
     <a class="btn alt" href="/summary/{{ token }}">← Summary</a>
     <button type="button" class="pickbtn" onclick="saveReview()">Save review (Excel)…</button>
     <span id="saveMsg" class="note"></span>
-    <a class="btn alt" href="/mask/{{ token }}">Mask for AI (if needed) →</a>
+    <button type="button" class="pickbtn" onclick="saveWip()">Save work in progress</button> <span id="wipMsg" class="note"></span>
+    <a class="btn alt" href="/ai/{{ token }}">AI Doc Review →</a>
   </div>
   <p class="disclaimer">Internal preparer aid. Contains client data — internal use only. Federal only.</p>
 </div>
@@ -267,6 +259,13 @@ tb.addEventListener('input', e => {
   if (el.classList.contains('clnote')) CL[i].note = el.value;
   saveCL(false);
 });
+async function saveWip() {
+  const m = document.getElementById('wipMsg'); m.textContent = 'Saving…';
+  try { await saveCL(true); } catch (e) {}
+  const j = await (await fetch(`/wip/${TOKEN}/save`, {method: 'POST'})).json();
+  if (j.ok) m.textContent = 'Saved ' + j.at + ' — ' + j.file + ' (in ' + j.folder + ')';
+  else m.textContent = j.nofolder ? "No place to save yet — choose a folder on the Summary page (Choose a folder…)." : (j.error || "Couldn't save.");
+}
 async function saveReview() {
   await saveCL(true);
   const m = document.getElementById('saveMsg'); m.textContent = 'Choose the folder…';
@@ -276,5 +275,6 @@ async function saveReview() {
 drawCL();
 </script>
 <script src="{{ url_for('static', filename='marks.js') }}"></script>
+<script src="{{ url_for('static', filename='ui.js') }}"></script>
 </body>
 </html>

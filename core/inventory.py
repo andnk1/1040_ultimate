@@ -5,7 +5,7 @@ Route (step 1 - before any amounts are read):
   ai       - a tax document the program can't read yet -> AI review
   context  - letters, notes, e-mails, organizers -> AI reads for facts
   excluded - deliberately left out (e.g. 1099-DA when a Koinly report is present)
-  skipped  - draft / estimate / duplicate / the prior-year return itself / unsupported file
+  skipped  - duplicate / the prior-year return itself / unsupported file
 AI pages: for long documents only the pages the AI needs are listed (never 300-page detail).
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ IMG_EXT = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".heic", ".bmp", ".gif"}
 LONG_DOC = 10           # documents longer than this only send their summary pages to the AI
 CLASSIFY_PAGES = 6      # pages read to classify a document
 
-# issuer: text or file-name keyword -> display name
+# issuer: keyword in the document's text -> display name (never the file name: names are typed by hand)
 ISSUERS = [
     ("ROBINHOOD", "Robinhood"), ("SCHWAB", "Charles Schwab"), ("FIDELITY", "Fidelity"),
     ("NATIONAL FINANCIAL SERVICES", "Fidelity (National Financial)"), ("M1 FINANCE", "M1"), ("M1 ", "M1"),
@@ -68,17 +68,18 @@ def return_year(text: str) -> int | None:
     return None
 
 
-def _issuer(text: str, name: str) -> str | None:
-    up = _norm(text[:1500])     # header area only - holdings listed further down name other companies
-    fn = " " + _norm(name.replace("_", " ").replace("-", " ")) + " "
-    for key, disp in ISSUERS:
-        if key in fn or (" " + key) in (" " + fn):
-            return disp
+def _issuer(text: str) -> str | None:
+    """The issuer named first in the text (first two pages): a holding listed further down names other companies."""
+    up = _norm(text)
+    at = []
     for key, disp in ISSUERS:
         if key.strip() in ("M1",):
             continue
-        if key in up:
-            return disp
+        m = re.search(r"(?<![A-Z0-9])" + re.escape(key.strip()) + r"(?![A-Z0-9])", up)
+        if m:
+            at.append((m.start(), disp))
+    if at:
+        return min(at)[1]
     # not a known issuer: the form's own "Payer's name: ..." line
     m = re.search(r"PAYER[’'`]?S\s+NAME\s*:\s*([^\n]{3,60})", text, re.I)
     if m:
@@ -89,9 +90,11 @@ def _issuer(text: str, name: str) -> str | None:
 
 
 def classify_text(text: str, name: str, n_pages: int, producer: str) -> dict:
-    """Document type from its text (first pages) and file name."""
+    """Document type from its text (first pages). The file name decides nothing (names are typed by hand), except "Karbon"
+    for the organizer; K-1s by name are picked up later (app._route_k1s)."""
     up = _norm(text)
     fn = _norm(name)
+    head = up[:400]                                  # the form's title at the top of the first page
     forms = [f for f in FORM_1099 if f in up]
     d = dict(doc_type="Other document", family="other", forms=forms)
 
@@ -100,7 +103,8 @@ def classify_text(text: str, name: str, n_pages: int, producer: str) -> dict:
         return d
 
     # Karbon client organizer ("Client Request Summary")
-    if "CLIENT REQUEST SUMMARY" in up and "CLIENT ORGANIZER" in up:
+    if "CLIENT REQUEST SUMMARY" in up and ("CLIENT ORGANIZER" in up or "KARBON" in up or "KARBON" in fn
+                                           or re.search(r"\bDUE (MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY),", up)):
         return is_("Karbon organizer", "karbon")
     # tax returns
     if ("INDIVIDUAL INCOME TAX RETURN" in up or "TWO YEAR COMPARISON" in up or "ULTRATAX" in _norm(producer)) and \
@@ -109,14 +113,16 @@ def classify_text(text: str, name: str, n_pages: int, producer: str) -> dict:
     if re.search(r"U\.S\. RETURN OF PARTNERSHIP INCOME|FORM 1065 .*RETURN|U\.S\. INCOME TAX RETURN FOR AN S CORPORATION|U\.S\. CORPORATION INCOME TAX RETURN", up) and n_pages >= 5 \
             and not re.search(r"FORM 1099-[A-Z]+\s*\(REV", up):   # IRS 1099 forms mention business returns in their notes
         return is_("Business tax return", "bizreturn")
-    # Koinly (name or text) - before 1099-DA, because Koinly reports mention 1099-DA
-    if "KOINLY" in fn or ("KOINLY" in up and re.search(r"8949|SCHEDULE D|SCHEDULE 1|TAX REPORT|CAPITAL GAINS REPORT", up)):
-        if "8949" in up and "SALES AND OTHER DISPOSITIONS" in up:
-            return is_("Koinly - Form 8949", "koinly")
-        if "SCHEDULE D" in up and "CAPITAL GAINS AND LOSSES" in up:
-            return is_("Koinly - Schedule D", "koinly")
-        if "SCHEDULE 1" in up and "ADDITIONAL INCOME" in up:
-            return is_("Koinly - Schedule 1", "koinly")
+    # crypto tax reports (Koinly, CoinTracker ...) printed as the IRS forms on their own: Form 8949, Schedule D, Schedule 1
+    # (family "koinly"; a full return is caught above). Before 1099-DA and K-1: these forms mention 1099-DA, trusts and K-1s.
+    kn = "Koinly - " if "KOINLY" in up else ""
+    if "8949" in head and "SALES AND OTHER DISPOSITIONS" in up:
+        return is_(kn + "Form 8949", "koinly")
+    if n_pages <= 3 and "SCHEDULE D" in head and "CAPITAL GAINS AND LOSSES" in up:
+        return is_(kn + "Schedule D (Form 1040)", "koinly")
+    if n_pages <= 3 and "SCHEDULE 1" in head and "ADDITIONAL INCOME" in up:
+        return is_(kn + "Schedule 1 (Form 1040)", "koinly")
+    if "KOINLY" in up and re.search(r"8949|SCHEDULE D|SCHEDULE 1|TAX REPORT|CAPITAL GAINS REPORT", up):
         return is_("Koinly - report", "koinly")
     if name.lower().endswith(".csv"):
         return is_("CSV file", "sheet")
@@ -192,7 +198,7 @@ ROUTE = {
     "estimates": "context", "other": "context", "karbon": "context", "bizreturn": "context", "note": "context",
 }
 
-ROUTE_LBL = {"program": "Program", "ai": "AI", "context": "Context (AI)", "excluded": "Excluded", "skipped": "Skipped"}
+ROUTE_LBL = {"program": "Program", "k1v": "K-1 section", "ai": "AI", "context": "Context (AI)", "excluded": "Excluded", "skipped": "Skipped"}
 
 
 def _summary_pages(doc, n: int) -> list[int]:
@@ -266,8 +272,6 @@ def scan_files(paths: list, py_year: int | None = None, py_return: str | Path | 
                      note="The prior-year return picked above — read separately.")
             docs.append(d)
             continue
-        if re.search(r"\b(draft|estimate[sd]?)\b", p.stem, re.I) and "1040-es" not in p.stem.lower():
-            d["draft"] = True
         if ext in PDF_EXT:
             try:
                 doc, pw = open_pdf(p, extra_passwords)
@@ -294,7 +298,8 @@ def scan_files(paths: list, py_year: int | None = None, py_return: str | Path | 
                 else:
                     d.update(classify_text(text, p.name, n, producer))
                     d["year"] = return_year(text) if d["family"] in ("return", "bizreturn") else _year(text, py_year)
-                    d["issuer"] = _issuer(text, p.name)
+                    d["issuer"] = _issuer("\n".join(texts[:2]))
+                    d["head_text"] = "\n".join(texts[:2])[:6000]     # last year's payers are looked for in it
                     d["route"] = ROUTE.get(d["family"], "ai")
                     if d["family"] == "return":
                         if py_year and d["year"] == py_year:
@@ -308,10 +313,7 @@ def scan_files(paths: list, py_year: int | None = None, py_return: str | Path | 
                     elif d["route"] in ("ai", "context"):
                         d["ai_pages"] = f"all ({n})"
         elif ext in SHEET_EXT:
-            d.update(doc_type="Spreadsheet / CSV", family="sheet", route="ai",
-                     note="Read by the AI for now (Koinly CSV / workpapers parser comes later).")
-            if "koinly" in p.name.lower():
-                d.update(doc_type="Koinly - CSV export", family="koinly", route="program", note="")
+            d.update(doc_type="Spreadsheet / CSV", family="sheet", route="ai", note="")
         elif ext in NOTE_EXT:
             d.update(doc_type="Note / e-mail / letter", family="note", route="context")
         elif ext in IMG_EXT:
@@ -319,8 +321,6 @@ def scan_files(paths: list, py_year: int | None = None, py_return: str | Path | 
         else:
             d.update(doc_type="Unsupported file type", family="unsupported", route="skipped",
                      note=f"{ext or 'no extension'} files aren't read.")
-        if d.get("draft") and d["route"] not in ("skipped",):
-            d.update(route="skipped", note=("Draft / estimate in the file name — skipped. " + d["note"]).strip())
         docs.append(d)
 
     for d in docs:

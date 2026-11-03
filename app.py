@@ -38,6 +38,7 @@ from core.pl import read_pl, MAP_LINES as PL_MAP_LINES, workpaper_csv, other_exp
 from core.verify import read_cy_return, run_checks, review_xlsx, master_load, master_save  # noqa: E402
 from core.carryovers import read_carryovers                                      # noqa: E402
 from core.karbon import read_karbon, answered                                    # noqa: E402
+from core.clientsum import read_client_summary, EXTS as CLIENTSUM_EXTS           # noqa: E402
 from core.people import read_people                                              # noqa: E402
 from core.masking import collect_values, mask_files, save_redacted, save_copies, MASKABLE, ALWAYS_MASK, mask_text, _text_patterns  # noqa: E402
 from core.utscreens import read_ut_screens, looks_like_ut_screens, doc_verify  # noqa: E402
@@ -45,11 +46,23 @@ import core.safe_pdf as safe_pdf                                                
 import core.wip as wip_mod                                                        # noqa: E402
 from core.settings import START_FOLDERS                                            # noqa: E402
 from core.ai_report import build as build_report, write as write_report                                      # noqa: E402
+import core.formview as fv_mod                                                    # noqa: E402
 
 PORT = int(os.environ.get("U1040_PORT", "5067"))
 WORK = HERE / "_work"            # masked copies while the program runs (deleted at start-up)
 app = Flask(__name__, template_folder=str(HERE / "templates"), static_folder=str(HERE / "static"))
 RUNS: dict = {}
+try:
+    from core.k1v import handoff as k1v_handoff
+except Exception:                                   # noqa: BLE001
+    k1v_handoff = None
+try:                                          # K-1 Verification pages (/k1v) - a separate, additive section (core/k1v)
+    from core.k1v import web as k1v_web
+    from core.k1v.web import register as _register_k1v
+    _register_k1v(app)
+except Exception as _e:                       # noqa: BLE001 - a problem there must never stop the rest of the app
+    k1v_web = None
+    print(f"K-1 Verification section not loaded: {type(_e).__name__}: {_e}")
 # first place the Browse buttons look (the first one that exists on this computer)
 DEFAULT_DIRS = START_FOLDERS + [str(HERE / "Return_Info")]     # start folders come from local_settings.json
 
@@ -88,10 +101,14 @@ def _dialog(kind: str, start: str = "", title: str = ""):
     if not _DIALOG_LOCK.acquire(blocking=False):
         return None                                   # a file window is already open - never queue a second one
     try:
-        out = subprocess.run([sys.executable, "-c", _DIALOG_PY, kind, init, title or ""], capture_output=True,
-                             text=True, encoding="utf-8", creationflags=flags, timeout=3600).stdout.strip()
+        res = subprocess.run([sys.executable, "-c", _DIALOG_PY, kind, init, title or ""], capture_output=True,
+                             text=True, encoding="utf-8", creationflags=flags, timeout=3600)
+        out = res.stdout.strip()
+        if not out and res.stderr.strip():            # the file window could not open - say why in the run.bat window
+            _step("File window did not open (" + sys.executable + "): " + res.stderr.strip().splitlines()[-1])
         v = json.loads(out.splitlines()[-1]) if out else ""
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        _step(f"File window did not open: {type(e).__name__}: {e}")
         v = ""
     finally:
         _DIALOG_LOCK.release()
@@ -147,10 +164,11 @@ EMPTY_PY = dict(file="", pages=0, year=None, software="", summary=None, filing_s
 
 @app.route("/run", methods=["POST"])
 def run():
-    """Everything is optional: prior-year return, documents, Karbon, UT input screens, work in progress (.json)."""
+    """Everything is optional: prior-year return, documents (a Karbon "Client Request Summary" among them is recognized),
+    client summary (PDF / Word), work in progress (.json). The UT input screens are added on Verify return."""
     _step("Run check received")
     mode = request.form.get("mode", "summary")
-    form = {k: (request.form.get(k) or "").strip().strip('"') for k in ("pyret", "karbon", "utscreens", "wip")}
+    form = {k: (request.form.get(k) or "").strip().strip('"') for k in ("pyret", "karbon", "clientsum", "utscreens", "wip")}
     try:
         doc_list = [d for d in json.loads(request.form.get("docs") or "[]") if isinstance(d, dict) and d.get("path")]
     except ValueError:
@@ -172,7 +190,7 @@ def run():
                         f"(prior-year return {Path(wf['pyret']).name}) — you picked {Path(form['pyret']).name}. "
                         "Clear one of them and run again.")
         folder = str(Path(form["wip"]).parent)
-        for k in ("pyret", "karbon", "utscreens"):           # the paths saved with the work (unless picked now)
+        for k in ("pyret", "karbon", "clientsum", "utscreens"):  # the paths saved with the work (unless picked now)
             form[k] = form[k] or wf.get(k, "")
             if form[k] and not Path(form[k]).is_file():
                 (new,), notes = wip_mod.relink([form[k]], folder)
@@ -188,7 +206,8 @@ def run():
     docs_on = [d["path"] for d in doc_list if d.get("on", True)]
     _step(f"checking the files ({len(docs_on)} documents)")
     # every PDF is opened once in a separate process first: a PDF that makes the reader hang can't freeze the program
-    for k, lbl in (("pyret", "prior-year return"), ("karbon", "Karbon organizer"), ("utscreens", "UT input screens")):
+    for k, lbl in (("pyret", "prior-year return"), ("karbon", "Karbon organizer"), ("clientsum", "client summary"),
+                   ("utscreens", "UT input screens")):
         if form[k] and Path(form[k]).is_file() and form[k].lower().endswith(".pdf"):
             _step(f"   opening the {lbl}")
             res = safe_pdf.probe(form[k], pages=0, timeout=90)
@@ -211,7 +230,12 @@ def run():
             return back(f"\"{Path(form['pyret']).name}\" doesn't look like a tax return — choose the prior-year 1040 (full print package), "
                         "or leave it empty.")
     if form["karbon"] and not Path(form["karbon"]).is_file():
-        return back("The Karbon organizer file wasn't found.")
+        form["karbon"] = ""                                   # saved with an older work in progress and moved: found in the documents instead
+    if form["clientsum"]:
+        if not Path(form["clientsum"]).is_file():
+            return back("The client summary file wasn't found.")
+        if Path(form["clientsum"]).suffix.lower() not in CLIENTSUM_EXTS:
+            return back(f"\"{Path(form['clientsum']).name}\" — the client summary must be a PDF or a Word document (.docx).")
     if form["utscreens"] and not Path(form["utscreens"]).is_file():
         return back("The UltraTax input screens file wasn't found.")
     if form["utscreens"] and not looks_like_ut_screens(form["utscreens"]):
@@ -231,10 +255,12 @@ def run():
     else:
         py, schc_py, sche_py, py_inc = json.loads(json.dumps(EMPTY_PY)), [], [], {}
         carry = dict(summary=[], from_forms=[], checks=[])
-    paths = [p for p in docs_on if os.path.normcase(p) != os.path.normcase(form["utscreens"] or "-")]
+    skip = {os.path.normcase(form[k]) for k in ("utscreens", "clientsum") if form[k]}
+    paths = [p for p in docs_on if os.path.normcase(p) not in skip]
     _step(f"scanning {len(paths)} documents")
     inv = scan_files(paths, py_year=py.get("year"), py_return=form["pyret"] or None)
     _split_packages(inv)
+    k1v_token, k1v_problems = _route_k1s(inv, form["utscreens"])
     ut = None
     if form["utscreens"]:
         _step("reading the UT input screens")
@@ -248,7 +274,12 @@ def run():
         py["year"], py["no_return"] = cy - 1, not form["pyret"]
         for d in inv["docs"]:                                 # the tax-year flag needs the year
             d["year_flag"] = bool(d.get("year")) and isinstance(d.get("year"), int) and d["year"] != cy and d.get("route") in ("program", "ai")
-    kpath = form["karbon"] or next((d["path"] for d in inv["docs"] if d["family"] == "karbon"), "")
+    # the Karbon "Client Request Summary" is recognized among the documents (same layout every time)
+    found = [d for d in inv["docs"] if d["family"] == "karbon"]
+    for d in found:
+        d["note"] = ("Karbon Client Request Summary — the client's answers are in the Karbon Summary box. " + (d.get("note") or "")).strip()
+    kpath = (found[0]["path"] if found else "") or form["karbon"]
+    form["karbon"] = kpath
     try:
         karbon = read_karbon(kpath) if kpath else None
     except Exception as e:  # noqa: BLE001
@@ -256,6 +287,17 @@ def run():
     if karbon is not None:
         karbon["file"] = Path(kpath).name
         karbon["shown"] = answered(karbon)
+        if found and not karbon.get("error") and karbon.get("questions"):
+            found[0]["read"] = "read"                         # read by the program - its answers are in the Karbon Summary box
+        if len(found) > 1:
+            karbon["more"] = [Path(d["path"]).name for d in found[1:]]
+    clientsum = None
+    if form["clientsum"]:
+        _step("reading the client summary")
+        try:
+            clientsum = read_client_summary(form["clientsum"])
+        except Exception as e:  # noqa: BLE001
+            clientsum = dict(file=Path(form["clientsum"]).name, items=[], error=str(e))
     _step("reading the amounts on each document")
     read_amounts(inv)
     match_expected(py["expected"], inv["docs"])
@@ -264,10 +306,16 @@ def run():
     sche = [dict(name=p["name"], py=p["lines"], cy={}, info=dict(type=p.get("type", ""), fair_days=p.get("fair_days"),
                                                                 personal_days=p.get("personal_days"))) for p in sche_py]
     r = RUNS[token] = dict(mode=mode, form=form, py=py, inv=inv, schc_py=schc_py, schc=schc, sche_py=sche_py, sche=sche, py_inc=py_inc,
-                           docs=paths, doc_list=doc_list, mask=None, carry=carry, edits={}, karbon=karbon, marks={}, comments={},
+                           docs=paths, doc_list=doc_list, mask=None, carry=carry, edits={}, karbon=karbon, clientsum=clientsum, marks={}, comments={},
                            cy_year=(py.get("year") or 0) + 1 if py.get("year") else None, moved=moved,
                            stuck=[f"{Path(p).name} — the PDF reader got stuck on it, left out; open it in Acrobat and save a copy, then add the copy"
                                   for p in stuck_docs])
+    r["token"] = token
+    if k1v_token:
+        r["k1v_token"] = k1v_token
+        k1v_web.set_owner(k1v_token, token)
+    if k1v_problems:
+        r["stuck"] = list(r.get("stuck") or []) + [f"{m} — not read in the K-1 section" for m in k1v_problems]
     r["client"] = _client_label(form, paths)
     r["to_ai"] = default_to_ai(r)
     if form["utscreens"]:
@@ -292,6 +340,33 @@ def run():
     wip_mod.save(r)
     _step("done")
     return redirect(url_for("summary", token=token))
+
+
+def _route_k1s(inv, ut_path):
+    """K-1 PDFs added as documents go to the K-1 Verification engine (the same one as the K-1 Verification page); the K-1 section of
+    the summary shows its K-1 Interpreter. Returns (K-1 run token or None, [problems])."""
+    if k1v_web is None:
+        return None, []
+    cands = [d for d in inv["docs"] if d["path"].lower().endswith(".pdf") and d.get("route") != "skipped" and d.get("family") != "pyreturn"
+             and (d.get("family") in ("k1p", "k1s", "k1t", "k1x")
+                  or re.search(r"(?<![A-Za-z0-9])K-?1(?![0-9])", d["file"], re.I))]      # a K-1 package can be classified as a return / statement
+    if not cands:
+        return None, []
+    _step(f"K-1 section: reading {len(cands)} K-1 document(s): " + "; ".join(f"{d['file'][:30]} ({d.get('family')})" for d in cands))
+    try:
+        token, problems, counts = k1v_web.make_run([(d["path"], d["file"]) for d in cands])
+    except Exception as e:  # noqa: BLE001 - the old reader is the fallback
+        _step(f"   K-1 section failed ({type(e).__name__}: {e}) - the document reader is used instead")
+        return None, []
+    for d in cands:
+        forms = counts.get(d["file"]) or []
+        if not forms:
+            continue
+        n = len(forms)
+        d.update(family="k1p" if "1065" in forms else "k1s", doc_type="K-1 (1065)" if "1065" in forms else "K-1 (1120-S)", route="k1v",
+                 read="read", parsed=dict(status="read", amounts={}, notes=[], checks=[]), k1v_n=n,
+                 note=f"Read in the K-1 section below — {n} K-1{'s' if n != 1 else ''}.")
+    return token, problems
 
 
 def _split_packages(inv):
@@ -339,6 +414,8 @@ def _load_ut(r, path):
             r["ut_error"] = f"No income entries found in \"{Path(path).name}\" — is it the input screens print?"
     except Exception as e:  # noqa: BLE001
         r["ut_error"] = f"Couldn't read the input screens: {type(e).__name__}: {e}"
+    if r.get("k1v_token") and r.get("ut_scr") and k1v_web is not None:        # the K-1 entry check in the K-1 section
+        k1v_web.attach_screens(r["k1v_token"], path)
 
 
 def _looks_like_1040(path) -> bool:
@@ -397,8 +474,15 @@ def read_amounts(inv: dict) -> None:
         p = d.get("parsed")
         if d["family"] == "koinly" and isinstance(p, dict) and p.get("parts") and grp:
             pick = 1 if grp == "da" else 0
-            p["parts"] = {k: [(re.sub(r"\(([A-L])/([A-L])\)", lambda m: f"({m.group(1 + pick)})", lb), v) for lb, v in pl]
-                          for k, pl in p["parts"].items()}
+            one = lambda lb: re.sub(r"\(([A-L])/([A-L])\)", lambda m: f"({m.group(1 + pick)})", lb)
+            p["parts"] = {k: [(one(lb), v) for lb, v in pl] for k, pl in p["parts"].items()}
+            p["part_notes"] = {one(lb): n for lb, n in (p.get("part_notes") or {}).items()}
+    for d in inv["docs"]:
+        # no known issuer in the text: the employer (W-2 box c) / lender (1098) the reader found on the form
+        p = d.get("parsed")
+        if not d.get("issuer") and isinstance(p, dict) and d["family"] in ("w2", "1098"):
+            f = next(iter((p.get("detail") or {}).get("boxes") or []), {})
+            d["issuer"] = (f.get("er") or f.get("ln") or "").split("\n")[0].strip() or None
     for d in inv["docs"]:
         # documents that now go to the AI: long ones send only their summary pages
         if (d["route"] in ("ai", "context") or d.get("read") == "partial") and not d.get("ai_page_list") and d["ext"] == ".pdf":
@@ -435,8 +519,9 @@ def summary(token):
     r.setdefault("comments", {})
     py_year = r["py"].get("year")
     inc, ded = _summaries(r)
+    invrows = inventory_rows(r)
     return render_template("summary.html", r=r, token=token, ROUTE_LBL=ROUTE_LBL, inc=inc, ded=ded, MAPL=PL_MAP_LINES,
-                           invrows=inventory_rows(r), INV_SECS=INV_SECS,
+                           invrows=invrows, INV_SECS=INV_SECS, fv=form_view_data(r, inc, invrows, ded),
                            SCHC=list(SCHC_LINES.items()), schc_json=json.dumps(r["schc"]),
                            SCHE=list(SCHE_LINES.items()), sche_json=json.dumps(r.get("sche") or []))
 
@@ -495,9 +580,17 @@ def save_added(token):
     return jsonify(ok=True)
 
 
+@app.route("/carryadd/<token>", methods=["POST"])
+def save_carry_added(token):
+    """Carryovers added with + by the preparer: [{id, item, activity, amount, note}]."""
+    r = _run(token)
+    r["carry_added"] = [a for a in (request.get_json(force=True, silent=True) or []) if isinstance(a, dict) and a.get("id")]
+    return jsonify(ok=True)
+
+
 # ---------------------------------------------------------------- work in progress (autosave)
-WIP_ROUTES = {"save_edits", "save_added", "save_ut", "save_toai", "save_marks", "save_comments", "save_schc", "save_sche",
-              "save_inventory", "verify_checklist", "verify_run", "save_invnote"}
+WIP_ROUTES = {"save_edits", "save_added", "save_carry_added", "save_ut", "save_toai", "save_marks", "save_comments", "save_schc", "save_sche",
+              "save_inventory", "verify_checklist", "verify_run", "save_invnote", "save_formview"}
 
 
 @app.after_request
@@ -511,10 +604,22 @@ def _autosave(resp):
 
 @app.route("/wip/find", methods=["POST"])
 def wip_find():
-    """Home page: a work-in-progress file next to the Karbon letter / prior-year return just picked."""
+    """Home page: a work-in-progress file next to the prior-year return / client summary just picked."""
     p = ((request.get_json(force=True, silent=True) or {}).get("path") or "").strip().strip('"')
     hit = wip_mod.find(str(Path(p).parent)) if p else None
     return jsonify(hit or {})
+
+
+@app.route("/wip/<token>/save", methods=["POST"])
+def wip_save(token):
+    """The 'Save work in progress' button: writes the work-in-progress .json now (it is also saved automatically after every change)."""
+    r = _run(token)
+    path = wip_mod.save(r)
+    if path:
+        return jsonify(ok=True, file=Path(path).name, folder=str(Path(path).parent), at=r.get("wip_saved") or datetime.now().strftime("%H:%M"))
+    if not r.get("wip_path"):
+        return jsonify(ok=False, nofolder=True, error="No place to save yet - choose a folder.")
+    return jsonify(ok=False, error=r.get("wip_error") or "Couldn't save the work in progress.")
 
 
 @app.route("/wip/<token>/folder", methods=["POST"])
@@ -547,22 +652,37 @@ def inventory_rows(r) -> list:
         if d.get("ai_page_list") and r.get("to_ai", {}).get(d["path"]):
             note = (note + " · " if note else "") + "AI pages: " + d["ai_pages"]
         a = st["amt"].get(d["path"]) or {}
-        rows.append(dict(key=d["path"], file=d["file"], path=d["path"], issuer=d.get("issuer") or "", year=d.get("year") or "",
+        typ = d.get("doc_type") or ""
+        amts = (d.get("parsed") or {}).get("amounts") if isinstance(d.get("parsed"), dict) else None
+        if d["family"] == "composite" and amts:          # the forms that hold amounts (the text names every 1099 in its instructions)
+            parts = [f for f, ks in (("INT", ("interest",)), ("DIV", ("dividends",)), ("B", ("st", "lt")), ("MISC", ("other", "rental")))
+                     if any(amts.get(k) for k in ks)]
+            typ += " (" + ", ".join(parts) + ")" if parts else ""
+        rows.append(dict(key=d["path"], file=d["file"], path=d["path"], issuer=d.get("issuer") or "", type=typ, year=d.get("year") or "",
                          year_flag=d.get("year_flag"), read=d.get("read") or "none", is_read=read, password=d.get("password"),
-                         feeds=("comments only" if isinstance(d.get("parsed"), dict) and d["parsed"].get("memo_only") else _feeds_label(d)) if read else "",
+                         feeds=("Karbon Summary" if d["family"] == "karbon" else
+                                "comments only" if isinstance(d.get("parsed"), dict) and d["parsed"].get("memo_only") else _feeds_label(d)) if read else "",
                          cy=a.get("cy"), sec=a.get("sec", ""),
                          note=st["notes"].get(d["path"], note), verified=bool(st["verified"].get(d["path"])),
                          ai=bool(r.get("to_ai", {}).get(d["path"])), free=False))
-    rows.sort(key=lambda x: x["file"].lower())                     # by file name (A-Z)
+    rows.sort(key=lambda x: _natural(x["file"]))                   # by file name: numbers in order (2 before 10), then A-Z
     for f in st["free"]:
-        rows.append(dict(key=f["id"], file=f.get("name", ""), issuer=f.get("issuer", ""), year="", read="", is_read=False,
+        rows.append(dict(key=f["id"], file=f.get("name", ""), issuer=f.get("issuer", ""), type="", year="", read="", is_read=False,
                          feeds="", cy=f.get("cy"), sec=f.get("sec", ""), note=f.get("note", ""),
                          verified=bool(f.get("verified")), ai=False, free=True))
     return rows
 
 
+def _natural(s: str) -> list:
+    """Sort key: '2. W-2' before '10. K-1'; names that start with a number come before the others."""
+    parts = re.split(r"(\d+)", s.lower().strip())
+    return [not parts[0] == ""] + [(0, int(p), "") if p.isdigit() else (1, 0, p) for p in parts if p != ""]
+
+
 def _feeds_label(d) -> str:
     """Income lines a read document landed on (from what the parser found)."""
+    if d.get("route") == "k1v":
+        return "K-1 section"
     p = d.get("parsed")
     amts = {}
     for x in (p if isinstance(p, list) else [p] if isinstance(p, dict) else []):
@@ -581,7 +701,7 @@ def inventory_export(r) -> list:
 
 
 def inventory_added(r) -> list:
-    """Inventory amounts -> income summary lines (per preparer only; per document stays blank)."""
+    """Inventory amounts -> income summary lines (corrected amount only; per document stays blank)."""
     st = r.get("invstate") or {}
     names = {d["path"]: d["file"] for d in r["inv"]["docs"]}
     out = []
@@ -609,6 +729,38 @@ def save_invnote(token):
                 f["note"] = note
     elif rid.startswith("inv|"):
         st.setdefault("notes", {})[rid[4:]] = note
+    return jsonify(ok=True)
+
+
+# ---------------------------------------------------------------- form tabs of the Document inventory
+def form_view_data(r, inc, invrows, ded=None) -> dict:
+    """The Document inventory's form tabs (W2 / 1098-M = 6 forms per tab, then the form types), every W-2 / 1098 column, the
+    corrections ({form: {column: {row: value}}}), and the lines typed over on the income / deduction summary (those win)."""
+    order = [d["key"] for d in invrows if not d["free"]]
+    cols = fv_mod.columns(r, order, "w2") + fv_mod.columns(r, order, "1098")
+    typed = {"w2": {}, "1098": {}}
+    for form, summ, key in (("w2", inc, "w2"), ("1098", ded, "mortgage")):
+        for s in (summ or {}).get("sections", []):
+            if s["key"] == key:
+                for x in s["rows"]:
+                    if x.get("edited") and x.get("file"):
+                        typed[form][x["file"]] = dict(cy=x.get("cy"), fit=x.get("fit"))
+    py_year = r["py"].get("year")
+    cy_year = (py_year or 0) + 1 if py_year else None
+    fvs = r.get("formview") or {}
+    return dict(tabs=fv_mod.tabs(r, cols), defs=fv_mod.DEFS, cols=cols, edits={f: fvs.get(f) or {} for f in fv_mod.FORMS},
+                typed=typed, codes=fv_mod.W2_12, year=cy_year, base=fv_mod.WAGE_BASE.get(cy_year), rate=fv_mod.SS_RATE,
+                per=fv_mod.PER_TAB)
+
+
+@app.route("/formview/<token>/<form>", methods=["POST"])
+def save_formview(token, form):
+    """Form view corrections: {"<doc path>#<form index>": {row key: value}} - the whole form's set (parsed values stay as read)."""
+    r = _run(token)
+    j = request.get_json(force=True, silent=True) or {}
+    if not isinstance(r.get("formview"), dict):
+        r["formview"] = {}
+    r["formview"][form] = {k: v for k, v in j.items() if isinstance(v, dict) and v}
     return jsonify(ok=True)
 
 
@@ -650,7 +802,7 @@ def save_toai(token):
 
 @app.route("/comments/<token>", methods=["POST"])
 def save_comments(token):
-    """Client comments (under the inventory) and the "received?" comments: {client, recv: {kind|name: text}, recv_note}."""
+    """Return comments (top of the summary page) and the "received?" comments: {client, recv: {kind|name: text}, recv_note}."""
     r = _run(token)
     j = request.get_json(force=True, silent=True) or {}
     r["comments"] = dict(client=str(j.get("client") or ""), recv={k: str(v) for k, v in (j.get("recv") or {}).items() if str(v).strip()},
@@ -700,14 +852,22 @@ def save_sche(token):
 
 
 @app.route("/sche/template.xlsx")
-def sche_template_dl():
-    """The blank standard Schedule E sheet (one row per property)."""
+@app.route("/sche/<token>/template.xlsx")
+def sche_template_dl(token=None):
+    """The standard Schedule E sheet (one row per property). With a run (token) the sheet comes pre-filled with the prior-year
+    return's property addresses (Schedule E line 1a) - amounts stay blank - so the names match when the sheet is imported back."""
     from io import BytesIO
     from flask import send_file
     import tempfile
     from core.sche_template import write_template
+    rows = None
+    if token:
+        py_props = _run(token).get("sche_py") or []
+        rows = [dict(sch=i // 6 + 1, num=i % 6 + 1, short=p["name"], address=p["name"])
+                for i, p in enumerate(py_props)
+                if (p.get("name") or "").strip() and not re.fullmatch(r"Property \d+", p["name"].strip())]   # skip "Property n" placeholders
     p = Path(tempfile.mkdtemp()) / "Schedule E template.xlsx"
-    write_template(p)
+    write_template(p, rows or None)
     return send_file(BytesIO(p.read_bytes()), as_attachment=True, download_name="Schedule E template.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -784,7 +944,7 @@ def _mask_defaults(r) -> list[str]:
     """Masking list default: the documents ticked "Goes to AI" (the prior-year return first)."""
     out = []
     ta = r.get("to_ai") or {}
-    for p in [r["form"].get("pyret"), r["form"].get("karbon")] + list(r["docs"]):
+    for p in [r["form"].get("pyret"), r["form"].get("karbon"), r["form"].get("clientsum")] + list(r["docs"]):
         if p and ta.get(p) and p.lower() not in [x.lower() for x in out]:
             out.append(p)
     return out
@@ -826,7 +986,7 @@ def mask_save(token):
     # the AI report goes with the redacted documents - masked with the same values
     py_year = r["py"].get("year")
     inc, ded = _summaries(r)
-    rep = build_report(r, inc, r.get("to_ai") or {}, r["mask"]["results"], ded)
+    rep = build_report(dict(r, inv=dict(r["inv"], docs=fv_mod.effective_docs(r))), inc, r.get("to_ai") or {}, r["mask"]["results"], ded)
     saved += write_report(folder, rep, lambda t: mask_text(t, pats)[0])
     return jsonify(folder=folder, saved=[Path(s).name for s in saved])
 
@@ -836,9 +996,18 @@ def _summaries(r):
     py_year = r["py"].get("year")
     cy_year = (py_year or 0) + 1 if py_year else None
     added = list(r.get("added") or []) + inventory_added(r)
-    inc = build_income_summary(r["py_inc"], r["inv"]["docs"], r["schc"], py_year, cy_year, r.get("edits"), added, sche=r.get("sche"))
-    ded = build_deduction_summary(r["py_inc"], r["inv"]["docs"], py_year, cy_year, r.get("edits"), added)
+    docs = fv_mod.effective_docs(r)                     # W-2 corrections from the form view; typed income summary amounts still win
+    inc = build_income_summary(r["py_inc"], docs, r["schc"], py_year, cy_year, r.get("edits"), added, sche=r.get("sche"),
+                               k1v=k1v_handoff.payloads(r.get("token")) if k1v_handoff else None)
+    ded = build_deduction_summary(r["py_inc"], docs, py_year, cy_year, r.get("edits"), added)
     return inc, ded
+
+
+@app.context_processor
+def _k1v_ctx():
+    tok = (request.view_args or {}).get("token")
+    return dict(k1v_info=k1v_handoff.info(tok) if k1v_handoff else dict(batches=0, k1s=0, files=[]),
+                k1v_check=bool(k1v_web and (k1v_web.RUNS.get((RUNS.get(tok) or {}).get("k1v_token")) or {}).get("result")))
 
 
 def _checklist(r):
@@ -855,11 +1024,11 @@ def verify(token):
     inc, ded = _summaries(r)
     if r.get("cy_ret"):
         try:
-            checks = run_checks(r["cy_ret"], inc, ded, r["inv"]["docs"], r["py"], r.get("sche"))
+            checks = run_checks(r["cy_ret"], inc, ded, fv_mod.effective_docs(r), r["py"], r.get("sche"))
         except Exception as e:  # noqa: BLE001
             err = f"Couldn't check the return: {type(e).__name__}: {e}"
     if r.get("ut_scr"):
-        ut = doc_verify(inc, r["inv"]["docs"], r["ut_scr"], r.get("sche"), r.get("schc"))
+        ut = doc_verify(inc, fv_mod.effective_docs(r), r["ut_scr"], r.get("sche"), r.get("schc"))
     return render_template("verify.html", r=r, token=token, checks=checks, error=err, ut=ut, ut_error=r.get("ut_error"),
                            cy_path=r.get("cy_path", ""), ut_path=r.get("ut_path") or "", inc=inc,
                            checklist=json.dumps(_checklist(r)))
@@ -935,8 +1104,9 @@ def verify_save(token):
     if not folder:
         return jsonify(cancelled=True)
     inc, ded = _summaries(r)
-    checks = run_checks(r["cy_ret"], inc, ded, r["inv"]["docs"], r["py"], r.get("sche")) if r.get("cy_ret") else None
-    ut = doc_verify(inc, r["inv"]["docs"], r["ut_scr"], r.get("sche"), r.get("schc")) if r.get("ut_scr") else None
+    docs = fv_mod.effective_docs(r)
+    checks = run_checks(r["cy_ret"], inc, ded, docs, r["py"], r.get("sche")) if r.get("cy_ret") else None
+    ut = doc_verify(inc, docs, r["ut_scr"], r.get("sche"), r.get("schc")) if r.get("ut_scr") else None
     client = r.get("client") or "Client"
     files = " + ".join(x for x in [(r.get("ut_scr") or {}).get("file"), (r.get("cy_ret") or {}).get("file")] if x)
     data = review_xlsx(client, files, checks, _checklist(r), inventory_export(r), ut, r.get("comments"), (r.get("py") or {}).get("expected"),
@@ -951,11 +1121,53 @@ def verify_save(token):
     return jsonify(saved=str(out))
 
 
+# the AI step pages: what each will do (Lady's text, 2026-11-02) - nothing behind them yet
+AI_PAGES = {
+    "ai": dict(title="AI Doc Review", what=[
+        "Reads, with the Claude API, the documents the program can't read or that you tick AI on the inventory.",
+        "One request per document: the AI says what the document is (form, issuer), reads its amounts and suggests where each one "
+        "goes. Python reading stays the default — the AI runs only when you click Parse with AI."], how=[
+        "On the inventory, tick AI on the documents to read.",
+        "Click Parse with AI (standard model).",
+        "Standard forms (W-2, 1099 composite …) open in their form tab, lines marked AI. Other forms and non-standard documents "
+        "(e-mails, contracts) get a card here: type, issuer, summary, quote, amounts, Goes to, actions.",
+        "Check each amount against the document, correct it, choose where it goes, then Confirm. Nothing counts on the income "
+        "summary until you confirm.",
+        "Unsure? Verify with stronger model — both answers are shown, differences highlighted; you pick.",
+        "Every change you make to an AI answer is logged (AI_logs). Review the log regularly: repeated mistakes become rules in the "
+        "AI guidance files."]),
+    "aireturn": dict(title="AI Return Review", what=[
+        "The AI reviews the finished return for what the numbers can't show: Karbon answers vs the return, Client Summary items, "
+        "prior year → current year (forms filed, payers, carryovers, filing status, dependents), and missed deductions and "
+        "credits. It does not check amounts — Verify return (UT verification) does that."], how=[
+        "Finish Verify return first.",
+        "Run the review. Each finding shows: area, what was found, evidence (Karbon question or return page), action (20 words or "
+        "less), severity.",
+        "Tick a finding when it's handled; dismiss it with a comment when it doesn't apply.",
+        "Findings that are wrong again and again → add a rule to the review instructions (.md)."]),
+    "advisory": dict(title="AI Advisory", what=[
+        "Planning ideas for the client, following a set of advisory instructions (to be written). Coming later."], how=[]),
+}
+
+
+def _ai_page(token, key):
+    _run(token)
+    return render_template("ai_page.html", token=token, page=dict(AI_PAGES[key], key=key))
+
+
 @app.route("/ai/<token>")
 def ai(token):
-    _run(token)
-    return render_template("placeholder.html", token=token, title="AI review",
-                           text="Step 3 — the AI report and the skill hand-off come after the document parsers.")
+    return _ai_page(token, "ai")
+
+
+@app.route("/ai-return/<token>")
+def ai_return(token):
+    return _ai_page(token, "aireturn")
+
+
+@app.route("/ai-advisory/<token>")
+def ai_advisory(token):
+    return _ai_page(token, "advisory")
 
 
 def _no_quickedit():

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1040 Verification</title>
+<style>
+:root{--navy:#3C69AB;--dark:#003366;--green:#446B67;--teal:#4e7874;--grey:#DFE1E9;--cardbg:#EFEFF7;--ink:#374151;--line:#9AA3B2;--mint:#7DD8C9;--warnbg:#FDF0F0;--warn:#8B0000;--orange:#B45309;--orangebg:#FEF3E2;
+  --ok:#1E7B4A;--okbg:#E3F4EA;--amb:#B45309;--ambbg:#FEF3E2;--bad:#B42318;--badbg:#FDE2E2;--man:#003366;--manbg:#E8EEF8}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#fff;color:var(--ink)}
+.wrap{max-width:1800px;margin:0 auto;padding:28px 16px 60px}
+h1{color:var(--dark);font-size:2.2rem;font-weight:800;margin:0 0 6px}
+h1::after{content:"";display:block;width:280px;height:1px;background:var(--line);margin-top:16px}
+.subtitle{color:#666;font-size:.9rem;margin:14px 0 22px}
+.card{background:var(--cardbg);border:1px solid var(--line);border-radius:8px;margin-bottom:18px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.cardhead{background:var(--dark);color:#fff;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:11px 20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+.cardhead .pname{text-transform:none;letter-spacing:0;font-size:1rem}
+.ein{font-weight:400;opacity:.85;margin-left:8px;font-size:.9rem}
+.utnum{background:#fff;color:var(--dark);border-radius:5px;padding:3px 10px;font-size:.9rem;letter-spacing:.02em}
+.cardbody{padding:12px 20px 16px}
+.match{padding:10px 20px 0;font-size:.86rem}
+.match b{color:var(--dark)}
+.nf{background:var(--badbg);border-left:4px solid var(--bad);color:var(--bad);font-weight:700;padding:8px 12px;border-radius:4px;margin:10px 20px 0;font-size:.86rem}
+.tiles{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.tile{background:#fff;border:1px solid var(--grey);border-radius:8px;padding:10px 16px;min-width:130px}
+.tile .n{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums}
+.tile .l{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6B7280}
+.tile.g .n{color:var(--ok)} .tile.a .n{color:var(--amb)} .tile.r .n{color:var(--bad)} .tile.m .n{color:var(--man)} .tile.f .n{color:#6B7280} .tile.c .n{color:var(--amb)}
+table.v{width:100%;border-collapse:collapse;background:#fff;font-size:.86rem;border:1px solid var(--grey);border-radius:6px;overflow:hidden}
+table.v th{background:#F7F7FB;color:var(--teal);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:7px 10px;border-bottom:1px solid var(--grey)}
+table.v td{padding:7px 10px;border-bottom:1px solid var(--grey);vertical-align:top}
+table.v td.n,table.v th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.box{font-weight:700;color:var(--dark);white-space:nowrap}
+tr.st-green td:first-child{border-left:4px solid var(--ok)} tr.st-amber td:first-child{border-left:4px solid #E8A15A}
+tr.st-red td:first-child{border-left:4px solid var(--bad)} tr.st-manual td:first-child{border-left:4px solid #9AA3B2} tr.st-fyi td:first-child{border-left:4px solid var(--grey)} tr.st-cant td:first-child{border-left:4px solid #E8A15A}
+tr.st-fyi td{color:#6B7280}
+.pill{display:inline-block;font-size:.7rem;font-weight:700;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.pill.green{background:var(--okbg);color:var(--ok)} .pill.amber{background:var(--ambbg);color:var(--amb)} .pill.red{background:var(--badbg);color:var(--bad)}
+.pill.manual{background:var(--manbg);color:var(--man)} .pill.fyi{background:var(--grey);color:var(--ink)} .pill.cant{background:var(--ambbg);color:var(--amb)}
+.msg{font-size:.84rem} .man{display:inline-block;font-size:.66rem;font-weight:700;padding:2px 6px;border-radius:4px;background:#E8EEF8;color:#003366;text-transform:uppercase;letter-spacing:.03em;margin-left:6px;vertical-align:middle} .note{font-size:.78rem;color:#6B7280;margin-top:2px}
+.mny .cur{user-select:none;-webkit-user-select:none}
+.vchk{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:700;color:var(--teal);text-transform:uppercase;cursor:pointer;white-space:nowrap}
+.vchk input{width:16px;height:16px;accent-color:var(--green);cursor:pointer}
+.cmt{width:100%;min-width:140px;padding:5px 8px;border:1px solid var(--grey);border-radius:5px;font-size:.82rem;font-family:inherit}
+tr.done td{background:#F1F8F6}
+.empty{font-size:.86rem;color:#6B7280;padding:4px 0}
+.toc{display:flex;flex-wrap:wrap;gap:8px}
+.toc a{font-size:.82rem;color:var(--navy);text-decoration:none;background:#fff;border:1px solid var(--grey);padding:5px 10px;border-radius:6px;display:inline-flex;gap:6px;align-items:center}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.dot.red{background:var(--bad)} .dot.amber{background:#E8A15A} .dot.green{background:var(--ok)} .dot.grey{background:#B8BDC7}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+button,a.btn{background:var(--dark);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none}
+button.alt,a.btn.alt{background:var(--green)}
+button.on{outline:3px solid var(--mint)}
+.orph{background:#fff;border-left:4px solid var(--bad);padding:10px 14px;border-radius:6px;font-size:.86rem;line-height:1.7}
+.legend{font-size:.8rem;color:#6B7280;line-height:1.7}
+.pg{color:#9CA3AF;font-size:.78rem}
+.hidden{display:none!important}
+.disclaimer{font-size:.75rem;color:#6B7280;margin-top:34px;line-height:1.5}
+@media print{@page{size:letter landscape;margin:10mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.noprint{display:none!important}.wrap{max-width:none;padding:0}tr{break-inside:avoid}.card{box-shadow:none}.cmt{border:none;padding:0}}
+</style>
+</head>
+<body>
+{% macro money(v) -%}
+{%- if v is none -%}<span class="empty">—</span>
+{%- else -%}<span class="mny"><span class="cur">$ </span>{{ "{:,.0f}".format(v) if v == v|round(0) else "{:,.2f}".format(v) }}</span>
+{%- endif -%}
+{%- endmacro %}
+{% set LBL = {"green":"OK","amber":"Confirm","red":"Missing / differs","manual":"Check manually","fyi":"FYI","cant":"No UT entry"} %}
+<div class="wrap">
+  <h1>1040 Verification</h1>
+  <p class="subtitle">K-1s: {{ k1name }} · UltraTax Input Screens: {{ retname }} · Each K-1 item checked against what was typed on the UltraTax K-1 screens.</p>
+
+  <div class="tiles">
+    <div class="tile g"><div class="n">{{ res.counts.green }}</div><div class="l">OK</div></div>
+    {% if res.counts.amber %}<div class="tile a"><div class="n">{{ res.counts.amber }}</div><div class="l">Confirm</div></div>{% endif %}
+    <div class="tile r"><div class="n">{{ res.counts.red }}</div><div class="l">Missing / differs</div></div>
+    <div class="tile m"><div class="n">{{ res.counts.manual }}</div><div class="l">Check manually</div></div>
+    {% if res.counts.cant %}<div class="tile c"><div class="n">{{ res.counts.cant }}</div><div class="l">No UT entry (warning)</div></div>{% endif %}
+    <div class="tile f"><div class="n">{{ res.counts.fyi }}</div><div class="l">FYI</div></div>
+    <div class="tile r"><div class="n">{{ res.not_found }}</div><div class="l">K-1s not in UltraTax</div></div>
+    <div class="tile r"><div class="n">{{ res.orphans|length }}</div><div class="l">In UltraTax, no K-1</div></div>
+  </div>
+
+  <div class="bar noprint">
+    <button type="button" id="fAll" class="on">Show all</button>
+    <button type="button" id="fIss">Issues only</button>
+    <button type="button" class="alt" onclick="window.print()">Print PDF</button>
+    <a class="btn alt" href="{{ k1v_base }}/verify/{{ token }}/excel">Download Excel</a>
+    <span id="prog" style="font-weight:700;color:var(--dark)"></span>
+  </div>
+
+  {% if res.orphans %}
+  <div class="card"><div class="cardhead">Entered in UltraTax, but no matching K-1 in the package</div><div class="cardbody"><div class="orph">
+    {% for o in res.orphans %}{{ o.name }} · EIN ***{{ o.ein4 }} · UT K1 unit {{ o.unit }}<br>{% endfor %}
+  </div></div></div>
+  {% endif %}
+
+  <div class="card noprint"><div class="cardhead">Jump to K-1</div><div class="cardbody"><div class="toc">
+    {% for c in res.cards %}{% set st = c['items']|map(attribute='status')|list %}
+    <a href="#c{{ loop.index }}"><span class="dot {{ 'red' if ('red' in st or not c.entity) else 'amber' if ('amber' in st or 'cant' in st) else 'green' if 'green' in st else 'grey' }}"></span>{{ c.name }}</a>
+    {% endfor %}
+  </div></div></div>
+
+  {% for c in res.cards %}
+  {% set st = c['items']|map(attribute='status')|list %}
+  <div class="card k1card" id="c{{ loop.index }}" data-issues="{{ 1 if ('red' in st or 'amber' in st or 'manual' in st or 'cant' in st or not c.entity) else 0 }}">
+    <div class="cardhead"><span class="pname">{{ c.name }}{% if c.ein %}<span class="ein">EIN {{ c.ein }}</span>{% endif %}</span><span style="display:flex;gap:18px;align-items:center"><span>K-1 PDF page {{ c.page }}</span><span class="utnum">{% if c.entity %}UT # {{ c.entity.unit }}{% else %}Not in UltraTax{% endif %}</span></span></div>
+    {% if c.entity %}
+      <div class="match">In UltraTax as <b>{{ c.entity.name }}</b> · EIN {{ c.entity.ein or ('***' ~ c.entity.ein4) }} · UT K1 unit {{ c.entity.unit }} · matched by {% if 'differs' in c.entity.how %}<b style="color:var(--bad)">{{ c.entity.how }}</b>{% else %}{{ c.entity.how }}{% endif %}</div>
+    {% else %}
+      <div class="nf">Not found in UltraTax — no K1 screen has this EIN or name.</div>
+    {% endif %}
+    <div class="cardbody">
+    {% if c.empty %}<div class="empty">No amounts on this K-1 — nothing to verify.</div>{% else %}
+      <table class="v">
+        <tr><th>Box</th><th class="n">K-1</th><th>Status</th><th class="n">Entered in UT</th><th>Where in UltraTax</th><th>Message</th><th class="noprint">Reviewed</th><th>Comment</th></tr>
+        {% for it in c['items'] %}
+        <tr class="st-{{ it.status }} item" data-id="{{ c.page }}|{{ it.key }}" data-st="{{ it.status }}">
+          <td class="box">{{ it.box }}{% if it.code %} {{ it.code }}{% endif %}{% if it.manual %}<span class="man" title="Typed in on the K-1 Interpreter page (Statement amounts), not read from the PDF">Added from statement</span>{% endif %}</td>
+          <td class="n">{% if it.kind == "type" %}{{ it.k1_type }}{% elif it.amt is not none %}{{ money(it.amt) }}{% elif it.check %}Checked{% elif it.extra %}<span class="empty">not on K-1</span>{% else %}See statement{% endif %}</td>
+          <td><span class="pill {{ it.status }}">{{ LBL[it.status] }}</span></td>
+          <td class="n">{% if it.kind == 'verify' %}{{ money(it.entered) }}{% elif it.kind == 'type' %}{{ it.ut_type }}{% endif %}</td>
+          <td>{{ it.form }}{% if it.page %} <span class="pg">(p. {{ it.page }})</span>{% endif %}</td>
+          <td><div class="msg">{{ it.msg }}{% if it.k1_total is not none %} — K-1 total {{ money(it.k1_total) }}{% endif %}</div>{% if it.note %}<div class="note">{{ it.note }}</div>{% endif %}{% if it.group %}<div class="note">Same UT line as {{ it.group|join(', ') }} — compared in total.</div>{% endif %}</td>
+          <td class="noprint">{% if it.status != 'fyi' %}<label class="vchk"><input type="checkbox" class="vc"> OK</label>{% endif %}</td>
+          <td><input type="text" class="cmt" placeholder=""></td>
+        </tr>
+        {% endfor %}
+      </table>
+    {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="legend">
+    <b>OK</b> — typed in UltraTax as on the K-1 (within $1). <b>Missing / differs</b> — not typed, typed at a different amount, entered under another code, or the K-1 isn't in UltraTax.
+    <b>Check manually</b> — amount is on a K-1 statement (the UltraTax entries for that box are listed), or an UltraTax entry that is not on the face of the K-1.
+    <b>No UT entry</b> (orange) — UltraTax has no input line with that code (warning, not an error). <b>FYI</b> — not typed in UltraTax on purpose (information only). "Where" = UltraTax screen · code · line (p. = page of the Input Screens PDF).</div>
+  <p class="disclaimer">Internal preparer aid — contains client information; internal use only. Federal only. Map of K-1 items to the return: verify1040_rules.py.</p>
+</div>
+<script>
+// Statement amounts typed on the K-1 Interpreter page are saved in this browser — make sure this run uses them.
+(function(){
+  try{
+    const st=JSON.parse(localStorage.getItem("k1interp|"+{{ (k1name or "")|tojson }})||"{}"), D=st.stmtDone||{}, S=st.stmt||{}, mine={}, fl=st.s11s||{};
+    new Set([...Object.keys(D),...Object.keys(S)]).forEach(pg=>{const e=(D[pg]||[]).concat(S[pg]||[]).filter(x=>x[0]||x[1]); if(e.length) mine[pg]=e;});
+    const server={{ manual|tojson }}, sflags={{ (flags or {})|tojson }};
+    const same=(a,b)=>JSON.stringify(a,Object.keys(a).sort())===JSON.stringify(b,Object.keys(b).sort());
+    if((JSON.stringify(mine)!==JSON.stringify(server) || !same(fl,sflags)) && !sessionStorage.getItem("k1v-synced-{{ token }}")){
+      sessionStorage.setItem("k1v-synced-{{ token }}","1");
+      fetch("{{ k1v_base }}/manual/{{ token }}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({manual:mine,flags:fl})})
+        .then(r=>r.json()).then(j=>{ if(j.changed) location.reload(); });
+    }
+  }catch(e){}
+})();
+const SKEY="k1verify|"+{{ (retname or "")|tojson }};
+function load(){try{return JSON.parse(localStorage.getItem(SKEY)||"{}")}catch(e){return {}}}
+function save(s){try{localStorage.setItem(SKEY,JSON.stringify(s))}catch(e){}}
+const st=load();
+function prog(){const a=document.querySelectorAll(".vc").length,d=document.querySelectorAll(".vc:checked").length;document.getElementById("prog").textContent=`Reviewed ${d} of ${a}`;}
+document.querySelectorAll("tr.item").forEach(tr=>{
+  const id=tr.dataset.id,s=st[id]||{},vc=tr.querySelector(".vc"),cm=tr.querySelector(".cmt");
+  cm.value=s.c||""; if(vc){vc.checked=!!s.v; tr.classList.toggle("done",vc.checked);}
+  const sv=()=>{st[id]={v:vc?vc.checked:false,c:cm.value};if(vc)tr.classList.toggle("done",vc.checked);save(st);prog();};
+  if(vc) vc.addEventListener("change",sv); cm.addEventListener("input",sv);
+});
+prog();
+function filt(iss){
+  document.getElementById("fAll").classList.toggle("on",!iss);document.getElementById("fIss").classList.toggle("on",iss);
+  document.querySelectorAll(".k1card").forEach(c=>c.classList.toggle("hidden",iss&&c.dataset.issues!=="1"));
+  document.querySelectorAll("tr.item").forEach(r=>r.classList.toggle("hidden",iss&&!["red","amber","manual","cant"].includes(r.dataset.st)));
+}
+document.getElementById("fAll").onclick=()=>filt(false);
+document.getElementById("fIss").onclick=()=>filt(true);
+</script>
+</body>
+</html>

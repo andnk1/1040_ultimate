@@ -445,11 +445,14 @@ def match_expected(expected: list, docs: list) -> None:
     for d in docs:
         if d["route"] in ("skipped",) or d["family"] in ("pyreturn", "return", "note", "other", "scan", "image"):
             continue
-        hay = _key(" ".join(filter(None, [d.get("issuer") or "", d["name"]])))
+        # the document's own text (first pages), never the file name (names are typed by hand)
+        hay = _key(" ".join(filter(None, [d.get("issuer") or "", d.get("head_text") or ""])))
         hit = False
         for e in expected:
             k = _key(e["name"])
-            if k and (k & hay) and max(len(t) for t in (k & hay)) >= 4:
+            first = next((t for t in re.sub(r"[^A-Z0-9 ]", " ", e["name"].upper()).split() if t in k), None)
+            # the payer's first word (Chase, Schwab, Wells ...) must be there - the text has many other words
+            if k and first in hay and max(len(t) for t in (k & hay)) >= 4:
                 e["received"].append(d["file"])
                 hit = True
         d["on_py"] = hit
@@ -641,6 +644,7 @@ def read_py_income(path, py: dict | None = None, schc: list | None = None) -> di
         s1 = _sched_lines(pdf, flat, ["Additional Income and Adjustments to Income", "Part I"], OrderedDict([("9", ""), ("10", "")]))
         se2 = _sched_lines(pdf, flat, ["Income or Loss From Partnerships and S Corporations"], OrderedDict([("32", ""), ("41", "")]))
         s1b = _sched_lines(pdf, flat, ["Adjustments to Income", "Part II", "Student loan interest"], OrderedDict([("21", "")]))
+        sa = _sched_lines(pdf, flat, ["Itemized Deductions", "Home mortgage interest"], OrderedDict([("8a", "")]))
     two = {l["label"]: l["cur"] for l in ((py or {}).get("summary") or {}).get("lines", [])} \
         if (py or {}).get("summary", {}) and (py["summary"].get("source", "").startswith("UltraTax")) else {}
 
@@ -670,4 +674,5 @@ def read_py_income(path, py: dict | None = None, schc: list | None = None) -> di
     out["fit"] = pick(f2.get("25d"), two.get("Withholding"))
     out["capgain_return"] = cg
     out["student_loan"] = pick(s1b.get("21"), two.get("Student loan interest"))
+    out["mortgage"] = sa.get("8a")                       # Schedule A line 8a: home mortgage interest and points on Form 1098
     return out

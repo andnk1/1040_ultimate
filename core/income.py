@@ -50,13 +50,25 @@ def _disp(d) -> str:
 
 
 def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year, cy_year, edits: dict | None = None,
-                         added: list | None = None, cats=None, feeds=None, sche: list | None = None) -> dict:
+                         added: list | None = None, cats=None, feeds=None, sche: list | None = None, k1v: list | None = None) -> dict:
     """2024 (PY): category totals from the prior-year 1040, for comparison only.
        2025 (CY): one row per document (per K-1 for K-1 packages) with the amount the program read."""
     koinly_d = any(x.get("family") == "koinly" and "Schedule D" in x.get("doc_type", "") and x.get("route") != "skipped" for x in docs)
     CATS_, FEEDS_ = cats or CATS, feeds or FEEDS
     sections = []
     inv_files = {a.get("file") for a in (added or []) if a.get("inv") and a.get("file")}
+    # K-1s uploaded from the K-1 Verification page ("Upload to 1040"): their lines replace the same K-1s read from documents
+    k1v = [p for p in (k1v or []) if p.get("sections")]
+    from core.k1v.handoff import TO_CAT as _K1V_CAT, same_name
+    k1v_names = [r_["name"] for p in k1v for r_ in p.get("k1s", []) if r_.get("name")]
+    k1v_dup = set()                                        # uploaded K-1s that the document reader also found
+    for d in docs:
+        if d.get("route") != "skipped" and isinstance(d.get("parsed"), list):
+            for k in d["parsed"]:
+                hit = next((x for x in k1v_names if same_name(k.get("name"), x)), None)
+                if hit:
+                    k1v_dup.add(hit)
+    _is_k1v = lambda n: any(same_name(n, x) for x in k1v_names)
     for key, label, red in CATS_:
         rows = []
         for d in docs:
@@ -69,6 +81,8 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
             excluded = d.get("route") == "excluded"
             if isinstance(parsed, list):                   # K-1 package: one row per K-1
                 for k in parsed:
+                    if k1v_names and _is_k1v(k.get("name")):
+                        continue                            # same K-1 came in through the K-1 Verification page - counted once
                     if key in k["amounts"] and k["amounts"][key]:
                         rows.append(dict(doc="K-1 " + k["name"], file=d["file"], cy=k["amounts"][key],
                                          note="; ".join(k["notes"][:3]) if key == "k1" else "", status=k["status"], excluded=False))
@@ -110,13 +124,30 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
                     note = "CHECK — " + "; ".join(parsed["checks"]) + ("; " + note if note else "")
                 if key == "other" and 'Other income' not in note:
                     note = ('Entered as "Other income"' + ("; " + note if note else ""))
-                parts = (parsed.get("parts") or {}).get(key) if key in ("st", "lt") else None
+                parts = (parsed.get("parts") or {}).get(key) if key in ("st", "lt", "other") else None
                 if parts and len(parts) >= 1 and parts[0][0]:
-                    for i, (lb, v) in enumerate(parts):    # one row per Form 8949 box
-                        rows.append(dict(doc=f'{_disp(d)} — {"ST" if key == "st" else "LT"} {lb}', file=d["file"], cy=v,
-                                         note=note if i == 0 else "", status=st, excluded=False, box=lb))
+                    pn = parsed.get("part_notes") or {}     # a comment per row (Schedule D line / Schedule 1 line)
+                    chk = "CHECK — " + "; ".join(parsed["checks"]) if parsed.get("checks") and key == _first_key(amts) else ""
+                    for i, (lb, v) in enumerate(parts):    # one row per Form 8949 box / Schedule 1 line
+                        n = "; ".join(x for x in [chk if i == 0 else "", pn.get(lb, "")] if x) if pn else (note if i == 0 else "")
+                        row = dict(doc=f'{_disp(d)} — {dict(st="ST ", lt="LT ").get(key, "")}{lb}', file=d["file"], cy=v,
+                                   note=n, status=st, excluded=False)
+                        if key != "other":
+                            row["box"] = lb
+                        rows.append(row)
                 else:
                     rows.append(dict(doc=_disp(d), file=d["file"], cy=amts[key], note=note, status=st, excluded=False))
+        for p in k1v:                                          # K-1 Verification upload
+            for sk, ck in _K1V_CAT.items():
+                if ck != key:
+                    continue
+                for x in p["sections"].get(sk, []):
+                    dup = any(same_name(x["doc"][4:].split(" — ")[0], n) for n in k1v_dup)
+                    note = x.get("comment", "")
+                    if dup:
+                        note = (note + "; " if note else "") + "also read from the K-1 document — counted once (K-1 Verification)"
+                    rows.append(dict(doc=x["doc"], file="k1v:" + p["token"], cy=x["amt"], note=note,
+                                     status="read", excluded=False))
         if key == "schc":
             biz = [(i, b.get("name") or (b.get("pl") or {}).get("company") or f"Business {i + 1}") for i, b in enumerate(schc or [])
                    if b.get("py") or b.get("calculated")]
@@ -173,7 +204,7 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
             if r["file"] in fit_by_file and r["file"] not in done and not r["excluded"] and r.get("schc") is None:
                 r["fit"] = fit_by_file[r["file"]]
                 done.add(r["file"])
-    # per document = what the program read (fixed); per preparer = per document unless typed over
+    # per document = what the program read (fixed); corrected amount = per document unless typed over
     for sec in sections:
         for r in sec["rows"]:
             prog = not r.get("added") and r.get("schc") is None and r.get("status") not in ("none", "excluded")
@@ -269,8 +300,9 @@ def _first_key(amts: dict):
 # ---------------------------------------------------------------- deduction summary (same layout, separate table; not in UT)
 DED_CATS = [
     ("student_loan", "Total Student Loan Interest", []),
+    ("mortgage", "Total Mortgage Interest", []),
 ]
-DED_FEEDS = {"1098e": ["student_loan"]}
+DED_FEEDS = {"1098e": ["student_loan"], "1098": ["mortgage"]}
 
 
 def build_deduction_summary(py_income: dict, docs: list, py_year, cy_year, edits=None, added=None) -> dict:
@@ -278,4 +310,6 @@ def build_deduction_summary(py_income: dict, docs: list, py_year, cy_year, edits
     for sec in d["sections"]:
         for r in sec["rows"]:
             r["fit"] = None
+    if len(d["sections"]) == 1:                  # one kind of deduction: its total is the total (no separate subtotal)
+        d["sections"][0]["label"] = "Total Deductions"
     return d

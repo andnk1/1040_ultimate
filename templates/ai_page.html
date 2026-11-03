@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1040 Ultimate · {{ page.title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% from '_steps.html' import steps %}
+{# The AI step pages (AI Doc Review, AI Return Review, AI Advisory): what each will do - nothing behind them yet (2026-11-02). #}
+<div class="wrap">
+  <h1>{{ page.title }}</h1>
+  {{ steps(token, page.key) }}
+  <div class="card">
+    <div class="cardhead">What it does</div>
+    <div class="cardbody">{% for p in page.what %}<p>{{ p }}</p>{% endfor %}</div>
+  </div>
+  {% if page.how %}<div class="card">
+    <div class="cardhead">How to use it (coming later)</div>
+    <div class="cardbody"><ol class="aisteps">{% for x in page.how %}<li>{{ x }}</li>{% endfor %}</ol></div>
+  </div>{% endif %}
+</div>
+</body>
+</html>

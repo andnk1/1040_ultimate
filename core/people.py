@@ -53,7 +53,8 @@ def _ssn_from(ws):
     return m.group(0) if m else ""
 
 
-def read_people(path) -> list[dict]:
+def _people(path) -> list[dict]:
+    """What page 1 shows: taxpayer and spouse (names, SSNs), address, the dependents' SSNs."""
     doc, pw = open_pdf(path)
     with doc:
         flat = [re.sub(r"\s+", " ", page_text(doc, i)) for i in range(min(len(doc), 60))]
@@ -111,6 +112,11 @@ def read_people(path) -> list[dict]:
                 zipc = _txt([w for w in wl if labels["zip_x"] - 5 <= w["x0"] < W * 0.8])
                 people[0]["city"] = "; ".join(x for x in (city, zipc) if x)
         people += _dependents(rows, W)
+    return people
+
+
+def read_people(path) -> list[dict]:
+    people = _people(path)
     # Pre-fill only the obvious: SSNs (as 123-45-6789) and city + ZIP. Names, addresses etc. are typed by the user.
     out = []
     for p in people:

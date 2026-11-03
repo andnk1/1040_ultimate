@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-1 Verification</title>
+<style>
+:root{--dark:#003366;--green:#446B67;--teal:#4e7874;--grey:#DFE1E9;--cardbg:#EFEFF7;--ink:#374151;--line:#9AA3B2;--mint:#7DD8C9;--warnbg:#FDF0F0;--warn:#8B0000}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#fff;color:var(--ink)}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 16px 60px}
+h1{color:var(--dark);font-size:2.2rem;font-weight:800;margin:0 0 6px}
+h1::after{content:"";display:block;width:280px;height:1px;background:var(--line);margin-top:16px}
+.subtitle{color:#666;font-size:.9rem;margin:14px 0 20px}
+.back{font-size:.85rem;margin:0 0 14px}.back a{color:var(--dark);text-decoration:none;font-weight:600}
+.card{background:var(--cardbg);border:1px solid var(--line);border-radius:8px;margin-bottom:18px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.cardhead{background:var(--dark);color:#fff;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:11px 20px}
+.cardbody{padding:16px 20px 20px}
+label{display:block;font-size:.8rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
+.field{margin-bottom:16px}
+input[type=file]{font-size:.9rem;color:var(--ink)}
+input[type=file]::file-selector-button{background:var(--mint);color:var(--ink);border:none;border-radius:6px;padding:6px 14px;font-weight:600;font-size:.85rem;cursor:pointer;margin-right:12px}
+.hint{font-size:.78rem;color:#6B7280;margin:6px 0 0}
+button,a.btn{display:inline-block;background:var(--dark);color:#fff;border:none;border-radius:8px;padding:12px 28px;font-size:1rem;font-weight:600;cursor:pointer;text-decoration:none}
+button:hover,a.btn:hover{background:#1A4D80}
+a.btn.alt{background:var(--green)} a.btn.alt:hover{background:var(--teal)}
+a.btn.off{background:#B8BDC7;pointer-events:none}
+.btnrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+.error{background:var(--warnbg);border-left:4px solid var(--warn);color:var(--warn);padding:10px 14px;border-radius:6px;margin:0 0 16px;font-weight:600;font-size:.86rem}
+.banner{background:#F1F5F4;border-left:4px solid #294F4C;color:#294F4C;font-weight:600;padding:12px 16px;border-radius:6px;margin-bottom:16px;font-size:.9rem;line-height:1.6}
+.disclaimer{font-size:.75rem;color:#6B7280;margin-top:34px;line-height:1.5}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--dark);margin:0 0 20px}
+.tabs button{background:var(--grey);color:var(--dark);border-radius:8px 8px 0 0;padding:10px 20px;font-size:.9rem;font-weight:700}
+.tabs button:hover{background:#cfd3de}
+.tabs button.on{background:var(--dark);color:#fff}
+.panel{display:none}.panel.on{display:block}
+table.v{width:100%;border-collapse:collapse;font-size:.86rem;background:#fff;margin:6px 0 16px}
+table.v th{background:var(--dark);color:#fff;text-align:left;padding:7px 10px;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em}
+table.v td{padding:6px 10px;border-bottom:1px solid var(--grey);vertical-align:top}
+table.v tr.grp td{background:var(--cardbg);color:var(--dark);font-weight:800;border-top:2px solid var(--line)}
+table.v td.code{font-weight:700;color:var(--dark);white-space:nowrap}
+table.v td.empty{width:20%}
+.note{font-size:.8rem;color:#6B7280}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="back"><a href="/">&larr; 1040 Ultimate</a></p>
+  <h1>K-1 Verification</h1>
+  <p class="subtitle">For returns with many K-1s: read the K-1s once, then open the UltraTax entry guide and check what was typed in UltraTax against the K-1s. The original K-1 PDFs are read directly &mdash; statement pages stay available.</p>
+
+  {% set active = 's1120' if tab == 's1120' else 'k1065' %}
+  <div class="tabs" id="tabs">
+    <button type="button" data-tab="k1065" class="{{ 'on' if active == 'k1065' }}">K-1 1065{% if run %} ({{ run.n1065 }}){% endif %}</button>
+    <button type="button" data-tab="s1120" class="{{ 'on' if active == 's1120' }}">K-1 1120-S{% if run %} ({{ run.n1120 }}){% endif %}</button>
+  </div>
+
+  <div class="panel {{ 'on' if active == 'k1065' }}" id="p-k1065">
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <div class="card">
+    <div class="cardhead">1 &middot; Read</div>
+    <div class="cardbody">
+      <form method="post" enctype="multipart/form-data" action="{{ k1v_base }}/">
+        <div class="field"><label>K-1 PDFs &mdash; Form 1065 and/or 1120-S</label><input type="file" name="k1pdf" accept="application/pdf" multiple required>
+          <p class="hint">Select one or more PDFs (a K-1 package, or the K-1 files themselves). Pages of the 2nd file are numbered 1001+, the 3rd 2001+.</p></div>
+        <div class="field"><label>Password for protected PDFs &mdash; only if a K-1 file asks for it</label><input type="password" name="pdfpw" autocomplete="off" style="max-width:260px">
+          <p class="hint">Used once to open the files, never saved. Same password for all protected K-1 files in this batch.</p></div>
+        <div class="field"><label>UltraTax Input Screens (PDF) &mdash; to check what was typed</label><input type="file" name="scrpdf" accept="application/pdf">
+          <p class="hint">UltraTax: File &gt; Print &gt; Input screens (print to PDF). Optional &mdash; without it you get the entry guide and the Income Summary only.</p></div>
+        <button type="submit">Read</button>
+      </form>
+    </div>
+  </div>
+
+  {% if run %}
+  <div class="card">
+    <div class="cardhead">2 &middot; Open</div>
+    <div class="cardbody">
+      {% for p in run.problems %}<div class="error"><b>Not read:</b> {{ p }}</div>{% endfor %}
+      <div class="banner">
+        K-1s: {{ run.k1name }} &mdash; {{ run.n1065 }} Form 1065, {{ run.n1120 }} Form 1120-S<br>
+        {% if run.scr %}Input Screens: {{ run.scrname }} &mdash; {{ run.scr.units|length }} K-1 units entered in UltraTax ({{ run.scr.pages }} pages)
+        {% else %}No Input Screens read &mdash; the K-1 check needs the Input Screens PDF.{% endif %}
+      </div>
+      <div class="btnrow">
+        <a class="btn" href="{{ k1v_base }}/k1/{{ token }}" target="_blank">K-1 Interpreter</a>
+        <a class="btn alt {% if not run.result %}off{% endif %}" href="{{ k1v_base }}/verify/{{ token }}" target="_blank">K-1 entry check</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  </div>
+
+  <div class="panel {{ 'on' if active == 's1120' }}" id="p-s1120">
+    <div class="card">
+      <div class="cardhead"><span>Schedule K-1 (Form 1120-S) &mdash; boxes and codes</span></div>
+      <div class="cardbody">
+        {% if run and run.n1120 %}<div class="banner">{{ run.n1120 }} Form 1120-S K-1s were read. They are checked against the input screens in the K-1 entry check; the Interpreter just lists their boxes (no UltraTax guidance and no Income Summary yet).</div>{% endif %}
+        <p class="hint" style="margin:0 0 10px">Names only, from the IRS list of codes (reserved codes left out). Where (UT), Note and Why are still empty.</p>
+        <table class="v">
+          <tr><th>Box</th><th>Code</th><th>Name</th><th>Where (UT)</th><th>Note</th><th>Why</th></tr>
+          {% for box, title, items in codes_1120s %}
+          <tr class="grp"><td colspan="6">Box {{ box }} &mdash; {{ title }}</td></tr>
+          {% for code, name in items %}
+          <tr><td>{{ box }}</td><td class="code">{{ code }}</td><td>{{ name }}</td><td class="empty"></td><td class="empty"></td><td class="empty"></td></tr>
+          {% endfor %}
+          {% endfor %}
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="disclaimer">Internal preparer aid. Contains client information &mdash; internal use only. Federal only. Partner's Basis Worksheets are not reviewed yet.</p>
+</div>
+<script>
+function showTab(t) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+</script>
+</body>
+</html>

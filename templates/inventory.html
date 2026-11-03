@@ -1,13 +1,16 @@
-{# Document inventory - top of screen 1. Read documents are listed (amounts on the income summary);
+{# Document inventory - top of screen 1. Tabs: "Summary" (this table) + one per form type (static/forms.js, W2 built).
+   Read documents are listed (amounts on the income summary);
    a not-read document can carry one amount + the income line it goes to; + adds free lines. #}
 {% set RDL = {'read': ('yes', 'Read'), 'partial': ('new', 'Partly read'), 'none': ('no', 'Not read')} %}
-<div class="card" id="invCard">
-  <div class="cardhead">Document inventory <span class="sub">{{ invrows|rejectattr('free')|list|length }} documents · sorted by file name · an amount here goes to the income summary (per preparer)</span></div>
+<details class="card" id="invCard">
+  <summary class="cardhead"><span><span class="arrow">▶</span>Document inventory</span> <span class="sub">{{ invrows|rejectattr('free')|list|length }} documents</span></summary>
   <div class="cardbody">
+    <div id="fvPick" class="bizpick invtabs noprint"></div>
+    <div id="invSummary">
     <table class="v invt" id="invTable">
-      <tr><th class="ck" title="Verified">✓</th><th>File name</th><th>Issuer</th><th>Year</th><th>Program read</th><th class="n">Amount</th><th>Added to</th><th>Note</th><th class="ck" title="Goes to the AI (masked)">AI</th></tr>
+      <tr><th class="ck" title="Verified">✓</th><th>File name</th><th>Issuer</th><th>Type</th><th>Program read</th><th class="n">Amount</th><th>Added to</th><th>Note</th><th class="ck" title="Goes to the AI (masked)">AI</th></tr>
       {% if r.form.pyret %}<tr class="toairow"><td class="ck"></td>
-        <td>{{ r.form.pyret.split('\\')[-1].split('/')[-1] }} <span class="note">(prior-year return)</span></td><td></td><td>{{ r.py.year or '' }}</td><td></td><td></td><td></td>
+        <td>{{ r.form.pyret.split('\\')[-1].split('/')[-1] }} <span class="note">(prior-year return)</span></td><td></td><td>Prior Year return</td><td></td><td></td><td></td>
         <td class="note">Summary, carryovers and forms are in the AI report; tick to send the return too.</td>
         <td class="ck"><input type="checkbox" class="toai" data-path="{{ r.form.pyret }}" {{ 'checked' if r.to_ai.get(r.form.pyret) }}></td></tr>{% endif %}
       {% for d in invrows %}
@@ -20,11 +23,11 @@
         {% else %}
         <td title="{{ d.path }}">{{ d.file }}{% if d.password %} <span class="note">(password)</span>{% endif %}</td>
         <td>{{ d.issuer }}</td>
-        <td>{% if d.year_flag %}<span class="flag">{{ d.year }}</span>{% else %}{{ d.year }}{% endif %}</td>
+        <td>{{ d.type }}{% if d.year_flag %} <span class="flag" title="Tax year on the document is not this year's">({{ d.year }})</span>{% endif %}</td>
         <td><span class="pill {{ RDL.get(d.read, RDL['none'])[0] }}">{{ RDL.get(d.read, RDL['none'])[1] }}</span></td>
         {% endif %}
         {% if d.is_read %}
-        <td class="n note">{{ 'not income — note only' if d.feeds == 'comments only' else 'on the income summary' }}</td><td class="note">{{ d.feeds }}</td>
+        <td class="n note">{{ 'not income — note only' if d.feeds == 'comments only' else ('not income — answers below' if d.feeds == 'Karbon Summary' else 'on the income summary') }}</td><td class="note">{{ d.feeds }}</td>
         {% else %}
         <td class="n"><input class="amt iamt{{ ' edited' if d.cy is not none }}" data-v="{{ '%.2f' % d.cy if d.cy is not none }}" data-shown="{{ '{:,.0f}'.format(d.cy) if d.cy is not none }}" value="{{ '{:,.0f}'.format(d.cy) if d.cy is not none }}" placeholder="amount"></td>
         <td><select class="isec"><option value="">—</option>
@@ -37,12 +40,10 @@
       {% for m in r.inv.missing %}<tr class="r-skipped"><td></td><td>{{ m }}</td><td colspan="7" class="flag">File not found</td></tr>{% endfor %}
       <tr class="invadd noprint"><td class="ck"><button type="button" class="plus" title="Add a line" onclick="invAdd()">+</button></td><td colspan="8"></td></tr>
     </table>
-    <div class="sublabel">Client comments</div>
-    <textarea class="cmtbox" id="clientCmt" rows="3" placeholder="General comments about the client (kept with the work in progress; shown on Verify return and in the review Excel)">{{ r.comments.client or '' }}</textarea>
-    <p class="note">✓ = verified (the row turns green; the tick goes into the Save review Excel). A not-read document takes one amount + the line it goes to;
-      more amounts from the same document go on the income summary with +. <b>+</b> at the bottom adds a free line. <b>AI</b> ticked = the document goes to the AI (masked) — the masking list on screen 3 follows these ticks.</p>
+    </div>
+    <div id="fvPane" style="display:none"></div>{# form tabs: static/forms.js #}
   </div>
-</div>
+</details>
 <script>
 (function () {
   const T = document.getElementById('invTable');

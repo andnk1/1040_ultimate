@@ -17,19 +17,19 @@ from pathlib import Path
 VERSION = 1
 PATTERN = "1040 Ultimate WIP*.json"
 # run keys that are the preparer's work
-KEYS = ["edits", "added", "schc", "sche", "ut", "marks", "to_ai", "invstate", "comments", "checklist"]
+KEYS = ["edits", "added", "schc", "sche", "ut", "marks", "to_ai", "invstate", "comments", "checklist", "carry_added", "formview"]
 
 
 def client_name(form: dict, docs: list | None = None) -> str:
     """The client folder's name (where the Karbon letter / prior-year return / documents sit)."""
-    for p in [form.get("karbon"), form.get("pyret"), form.get("utscreens")] + list(docs or []):
+    for p in [form.get("karbon"), form.get("pyret"), form.get("clientsum"), form.get("utscreens")] + list(docs or []):
         if p:
             return Path(p).parent.name or "Client"
     return "Client"
 
 
 def default_folder(form: dict) -> str | None:
-    for k in ("karbon", "pyret"):
+    for k in ("karbon", "pyret", "clientsum"):
         if form.get(k):
             return str(Path(form[k]).parent)
     return None

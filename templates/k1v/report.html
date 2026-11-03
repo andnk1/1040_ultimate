@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-1 Interpretation</title>
+<style>
+:root{--navy:#3C69AB;--dark:#003366;--green:#446B67;--teal:#4e7874;--grey:#DFE1E9;--bg:#fff;--cardbg:#EFEFF7;--ink:#374151;--line:#9AA3B2;--mint:#7DD8C9;--warnbg:#FDF0F0;--warn:#8B0000;--orange:#B45309;--orangebg:#FEF3E2;}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1800px;margin:0 auto;padding:28px 16px 60px}
+h1{color:var(--dark);font-size:2.2rem;font-weight:800;margin:0 0 6px}
+h1::after{content:"";display:block;width:280px;height:1px;background:var(--line);margin-top:8px}
+.subtitle{color:#666;font-size:.9rem;margin:14px 0 28px}
+.card{background:var(--cardbg);border:1px solid var(--line);border-radius:8px;margin-bottom:18px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.cardhead{background:var(--dark);color:#fff;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:11px 20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cardhead .pname{text-transform:none;letter-spacing:0;font-size:1rem}
+.cardbody{padding:14px 20px 18px}
+label,.lbl{display:block;font-size:.8rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+input[type=file]{font-size:.9rem;color:var(--ink)}
+input[type=file]::file-selector-button{background:var(--mint);color:var(--ink);border:none;font-family:Calibri,"Segoe UI",sans-serif;border-radius:6px;padding:6px 14px;font-weight:600;font-size:.85rem;cursor:pointer;margin-right:12px}
+.hint{font-size:.78rem;color:#6B7280;margin:8px 0 0}
+.banner{background:#F1F5F4;border-left:4px solid #294F4C;color:#294F4C;font-weight:600;padding:12px 16px;border-radius:6px;margin-bottom:18px;font-size:.9rem}
+.error{background:var(--warnbg);border-left:4px solid var(--warn);color:var(--warn);padding:10px 14px;border-radius:6px;margin:10px 0;font-weight:600;font-size:.86rem}
+.badges{display:flex;gap:6px;flex-wrap:wrap;padding:10px 20px 0}
+.badge{font-size:.72rem;font-weight:700;padding:3px 8px;border-radius:999px;background:#fff;border:1px solid var(--grey);color:var(--teal);text-transform:uppercase;letter-spacing:.03em}
+.badge.orange{background:var(--orangebg);border-color:#F5C58A;color:var(--orange)}
+.badge.red{background:var(--warnbg);border-color:#F2B8B8;color:var(--warn)}
+.item{background:#fff;border:1px solid var(--grey);border-radius:6px;margin-top:10px;overflow:hidden}
+.item.hl{border-left:4px solid var(--navy)}
+.ihead{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.6fr);align-items:center;gap:14px;padding:7px 14px;border-bottom:1px solid var(--grey)}
+.ihead .left{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.verify{display:flex;align-items:center;gap:10px}
+.vchk{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.03em;margin:0;white-space:nowrap;cursor:pointer}
+.vchk input{width:18px;height:18px;accent-color:var(--green);cursor:pointer}
+.cmt{flex:1;min-width:0;padding:6px 9px;border:1px solid var(--grey);border-radius:6px;font-size:.85rem;color:var(--ink);font-family:inherit}
+.cmt:focus,.utn:focus{outline:2px solid var(--mint);border-color:var(--mint)}
+.item.done{border-color:#9FD5C9}.item.done .ihead{background:#F1F8F6}
+.utbox{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+.utn{width:70px;padding:4px 7px;border:1px solid var(--grey);border-radius:5px;font-size:.9rem;font-weight:700;color:var(--dark);text-align:center}
+.pv{display:none}
+.utw{margin-top:6px;font-size:.8rem;font-weight:700;color:var(--orange);background:var(--orangebg);border-radius:4px;padding:4px 8px;display:block;width:fit-content}
+table.mini tr.lhl td{background:var(--orangebg);font-weight:700;color:var(--orange)}
+table.mini tr.lred td{background:var(--warnbg);font-weight:700;color:var(--warn)}
+.addr{padding:6px 20px 0;font-size:.86rem;color:var(--ink);white-space:pre-line}
+.ein{font-weight:400;opacity:.85;margin-left:8px;font-size:.9rem}
+button.clr{background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:5px;text-transform:uppercase;letter-spacing:.04em}
+button.clr:hover{background:rgba(255,255,255,.15)}
+@media print{button.clr{display:none}}
+table.mini tr.ltot td{border-top:1px solid var(--line);font-weight:700}
+.pcwrap{padding:10px 20px 0}
+.pcom{width:100%;min-height:44px;resize:vertical;padding:8px 10px;border:1px solid var(--grey);border-radius:6px;font-family:inherit;font-size:.88rem;color:var(--ink);background:#fff}
+.pcom:focus{outline:2px solid var(--mint);border-color:var(--mint)}
+@media print{.pcom{display:none}.pv.pcomp{display:block;white-space:pre-wrap;font-size:.86rem;border:1px solid var(--grey);border-radius:6px;padding:6px 10px;min-height:1.4em;background:#fff}}
+.btnrow{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+button.alt{background:var(--green)}button.alt:hover{background:var(--teal)}
+.progress{font-weight:600}
+@media print{
+  @page{size:letter landscape;margin:10mm}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .noprint{display:none!important}
+  .wrap{max-width:none;padding:0}
+  .item,.ihead{break-inside:avoid}
+  .card{break-inside:auto;box-shadow:none}
+  .cardhead{break-after:avoid}
+  .cmt,.utn{display:none}
+  .pv{display:inline-block}
+  .pv.cmtp{flex:1;font-size:.85rem;border-bottom:1px solid var(--grey);min-height:1.2em;white-space:pre-wrap}
+  .pv.utp{font-weight:700;min-width:50px;border-bottom:1px solid #fff}
+  a{text-decoration:none;color:inherit}
+}
+.ihead .box{font-weight:700;color:var(--dark)}
+.ihead .amt{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.05rem;color:var(--dark)}
+.tags{display:inline-flex;gap:6px;vertical-align:middle}
+.tag{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.03em}
+.tag.fyi{background:var(--grey);color:var(--ink)}
+.tag.stmt{background:var(--orangebg);color:var(--orange)}
+.tag.change{background:var(--warnbg);color:var(--warn)}
+.tag.enter{background:#E6F2F0;color:var(--green)}
+.tri{display:grid;grid-template-columns:1fr 1.4fr 1.4fr}
+.tri>div{padding:10px 14px;font-size:.86rem;line-height:1.45}
+.tri>div:first-child{white-space:pre-line}
+.tri>div+div{border-left:1px solid var(--grey)}
+.tri .lbl{font-size:.7rem;margin-bottom:4px}
+.empty{color:#9CA3AF}
+.f1040{margin-top:6px;font-size:.8rem;color:var(--green);font-weight:600}
+.fyiline{background:var(--orangebg);border-left:4px solid #E8A15A;color:var(--orange);padding:6px 10px;border-radius:4px;margin-bottom:6px;font-size:.83rem;font-weight:400}
+.fyiline.b{font-weight:700}
+.mny .cur{user-select:none;-webkit-user-select:none}
+.tag.man{background:#E8EEF8;color:#003366}
+.rmst{font-size:.72rem;color:var(--warn);text-decoration:underline;cursor:pointer;align-self:center}
+.schbox{display:flex;gap:16px;margin-top:8px;font-size:.82rem;font-weight:600;color:var(--dark)}
+.schbox label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;margin:0;text-transform:none;letter-spacing:0;font-size:.82rem;color:var(--dark)}
+.schbox input{width:16px;height:16px;accent-color:var(--green)}
+.stline{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px;padding:10px 12px;background:#fff;border:1px dashed var(--line);border-radius:6px}
+.stline .lbl{margin:0 4px 0 0;white-space:nowrap}
+.stslot{display:inline-flex;gap:4px;flex:1 1 0;min-width:150px}
+.stsel{flex:1;min-width:0;padding:5px 4px;border:1px solid var(--grey);border-radius:5px;font-size:.8rem;color:var(--ink);background:#fff}
+.stamt{width:84px;padding:5px 7px;border:1px solid var(--grey);border-radius:5px;font-size:.85rem;text-align:right}
+.stamt.bad{border-color:var(--warn);background:var(--warnbg)}
+.neg{color:#C00000}
+.warnline{background:var(--warnbg);border-left:4px solid var(--warn);color:var(--warn);padding:6px 10px;border-radius:4px;margin-bottom:6px;font-weight:600;font-size:.83rem}
+.zeros{font-size:.8rem;color:#6B7280;margin-top:10px}
+table.mini{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:4px}
+table.mini th,table.mini td{padding:4px 6px;border-bottom:1px solid var(--grey);text-align:left}
+table.mini td.n,table.mini th.n{text-align:right;font-variant-numeric:tabular-nums}
+.toc{display:flex;flex-wrap:wrap;gap:8px}
+.toc a{font-size:.85rem;color:var(--navy);text-decoration:none;background:#fff;border:1px solid var(--grey);padding:5px 10px;border-radius:6px}
+button{background:var(--dark);color:#fff;border:none;border-radius:8px;padding:12px 28px;font-size:1rem;font-weight:600;cursor:pointer}
+button:hover{background:#1A4D80}
+.center{text-align:center;margin-top:28px}
+.disclaimer{font-size:.75rem;color:#6B7280;margin-top:34px;line-height:1.5}
+.hidden{display:none}
+.ktabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:2px solid var(--grey);margin:0 0 12px}
+.ktab{font:inherit;font-size:.85rem;font-weight:600;color:var(--navy);background:#fff;border:1px solid var(--grey);border-bottom:none;padding:6px 12px;border-radius:6px 6px 0 0;cursor:pointer}
+.ktab.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+.ktabs.hidden{display:none}
+.k1hide{display:none}
+@media print{.k1hide{display:block!important}}
+@media(max-width:760px){.tri{grid-template-columns:1fr}.tri>div+div{border-left:none;border-top:1px solid var(--grey)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 style="font-size:1.3rem;margin:0 0 4px">K-1 Interpretation</h1>
+  {% if filename %}<p class="hint noprint" style="margin:0 0 8px">File: {{ filename }}</p>{% endif %}
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <div id="results" class="hidden">
+    <div class="banner" id="summary"></div>
+    <div class="ktabs noprint hidden" id="ktabs"></div>
+    <div class="card noprint" id="tocCard"><div class="cardhead">Jump to K-1</div><div class="cardbody"><div class="toc" id="toc"></div></div></div>
+    <div id="k1s"></div>
+    <div class="center noprint"><div class="btnrow"><button id="calc" type="button">Calculate totals</button><button id="printbtn" type="button" class="alt">Print PDF</button><button id="xlbtn" type="button" class="alt">Download Excel summary</button><button id="upbtn" type="button">Upload to 1040</button><button id="revbtn" type="button" class="alt">Export for reviewer (HTML)</button><button id="savebtn" type="button" class="alt">Save my entries</button><button id="loadbtn" type="button" class="alt">Load entries</button><input type="file" id="loadfile" accept=".json,application/json" style="display:none"></div><div id="xlmsg"></div>
+      <p class="hint">Opens a new tab with totals by box/code and the 8582 passive-activity build.</p></div>
+  </div>
+
+  <p class="disclaimer">Internal preparer aid. It doesn't replace reading the K-1, its statements and the K-3. Always compare the values read against the K-1 itself. Rules: k1_rules.py (1065_K1_UltraTax_1040_Checklist + preparer mappings).</p>
+</div>
+
+<script>
+const K1S = {{ k1s|tojson }};
+const RULES = {{ rules|tojson }};
+const ORDER = {{ order|tojson }};
+const FILE = {{ (filename or "")|tojson }};
+let SUMMARY = {{ summary|tojson }};
+const STATIC = {{ 'true' if static else 'false' }};
+const CODES = {{ (codes or [])|tojson }};      // [box, code, IRS name] for the statement-amount dropdowns (boxes 11 / 13 / 20)
+const BASE = {{ k1v_base|tojson }};
+const TOKEN = {{ (token or "")|tojson }};      // run id in verify1040 (statement amounts are sent there for the 1040 verification)
+const ORIG = {};                               // page -> K-1 as read from the PDF (before statement amounts)
+let STMT = {};
+let SCH = {};
+let S11 = {};                                 // "page|n" -> "ST" | "LT" — box 11 S (n-th 11S line on the K-1): short-term / long-term
+let DONE = {};                                 // page -> [[key, amount], ...] statement amounts moved into the K-1 by "Calculate totals" (no limit)                                  // page -> "E" | "1" — where box 11 ZZ goes (blank = Schedule E)                                 // page -> [[key, amount], x5] typed in the "Statement amounts" line
+const PC = {};   // page -> partnership comment
+const UT = {};   // page -> UT number
+const SKEY = "k1interp|"+FILE;
+function loadState(){try{return JSON.parse(localStorage.getItem(SKEY)||"{}")}catch(e){return {}}}
+function saveState(st){try{localStorage.setItem(SKEY,JSON.stringify(st))}catch(e){}}
+
+const fmt=n=>{const v=(n<0?"-":"")+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2});
+  return `<span class="mny${n<0?" neg":""}"><span class="cur">$ </span>${v}</span>`;};   // "$ " can't be selected — copy just the number into UT
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct=n=>n==null?"—":(+n).toFixed(8).replace(/0+$/,"").replace(/\.$/,"")+"%";
+// Tags removed (Lady): Enter, Change, Not default, FYI, General rule — kept as empty strings so the logic stays the same
+const T={fyi:'',stmt:'<span class="tag stmt">See statement</span>',change:'',enter:'',k3:'<span class="tag stmt">Review K-3</span>',gen:'',
+  norule:'<span class="tag change">No rule yet</span>',nd:'',f7217:'<span class="tag change">Form 7217</span>',
+  man:'<span class="tag man">Added from statement</span>'};
+
+function ruleFor(box,code){
+  const key=box+(code||"");
+  if(RULES[key]) return [key,RULES[key],false];
+  if(RULES[box+"*"]) return [box+"*",RULES[box+"*"],true];
+  if(!code && RULES[box]) return [box,RULES[box],false];
+  return [null,null,false];
+}
+function fill(s,k){return String(s||"").replace("{year}",k.year||"")}
+// orange note box (no yellow): short notes (2-3 words) bold, longer not bold
+function nbox(t,style){ t=String(t||""); return `<div class="fyiline${t.trim().split(/\s+/).length<=3?" b":""}"${style?` style="${style}"`:""}>${esc(t)}</div>`; }
+function tri(where,note,why,f1040,utw,wnote,wextra){
+  const cell=(l,v)=>`<div><span class="lbl">${l}</span>${v?v:'<span class="empty">—</span>'}</div>`;
+  return `<div class="tri">${cell("Where (UT)",esc(where)+(wnote?nbox(wnote,`margin-top:${where?6:0}px`):"")+(utw?`<div class="utw">UT: ${esc(utw)}</div>`:"")+(wextra||""))}${cell("Note",(note||"")+(f1040?`<div class="f1040">1040 → ${esc(f1040)}</div>`:""))}${cell("Why",why)}</div>`;
+}
+let CUR=null;
+function item(title,value,tags,body,hl){
+  const id=esc(CUR.page+"|"+title);
+  return `<div class="item${hl?" hl":""}" data-id="${id}"><div class="ihead"><div class="left"><span class="box">${esc(title)}</span>${value?`<span class="amt">${value}</span>`:""}<span class="tags">${tags.join("")}</span></div>
+    <div class="verify"><label class="vchk"><input type="checkbox" class="vc"> Verified</label><input type="text" class="cmt" placeholder="Comment"><span class="pv cmtp"></span></div></div>${body}</div>`;
+}
+function changeTable(rows,f){
+  let warn="",tbl="";
+  for(const [r,[b,e]] of rows){
+    const d=(e??0)-(b??0);
+    if(Math.abs(d)>1e-9) warn+=`<div class="warnline">${esc(r)} ${d>0?"increased":"decreased"} ${f(Math.abs(d))} (${f(b??0)} → ${f(e??0)})</div>`;
+    tbl+=`<tr><td>${esc(r)}</td><td class="n">${f(b??0)}</td><td class="n">${f(e??0)}</td></tr>`;
+  }
+  return {warn, html:warn+`<table class="mini"><tr><th></th><th class="n">Beginning</th><th class="n">Ending</th></tr>${tbl}</table>`};
+}
+
+function renderK1(k,i){
+  CUR=k;
+  const out=[], badges=[];
+  badges.push(`<span class="badge">Form ${esc(k.form||"?")} · ${k.year||""}</span>`);
+  if(k.form==="1120-S"){   // S corporation: list the boxes read (no UltraTax guidance yet — checked in the 1040 Verification)
+    const rows=k.lines.filter(l=>l.check||l.stmt||(l.amt!=null&&l.amt!==0)).map(l=>`<tr><td><b>Box ${esc(l.box)}${l.code?" "+esc(l.code):""}</b></td><td style="text-align:right">${l.check?"Checked":(l.amt==null?"See statement":fmt(l.amt))}</td><td>${l.stmt?T.stmt:""}</td></tr>`).join("");
+    return `<div class="card" id="k1-${i}" data-page="${k.page}"><div class="cardhead"><span class="pname">K-1 #${i+1} · ${esc(k.name||"(name not read)")}${k.ein?`<span class="ein">EIN ${esc(k.ein)}</span>`:""}</span><span>PDF page ${k.page}</span></div>
+      <div class="cardbody"><div class="badges"><span class="badge">Form 1120-S · ${k.year||""}</span><span class="badge">S corporation shareholder</span></div>
+      <div class="fyiline" style="margin:8px 0">Schedule K-1 (Form 1120-S) — boxes read below. No UltraTax entry guidance yet; the amounts are checked in the 1040 Verification.</div>
+      ${rows?`<table style="border-collapse:collapse;min-width:360px;font-size:.88rem">${rows}</table>`:'<div class="zeros">No amounts on this K-1.</div>'}
+      ${k.warnings.map(w=>`<div class="error">${esc(w)}</div>`).join("")}</div></div>`;
+  }
+  if(k.form!=="1065"){
+    return `<div class="card" id="k1-${i}"><div class="cardhead"><span class="pname">K-1 #${i+1} · ${esc(k.name||"(name not read)")}</span><span>PDF page ${k.page}</span></div>
+      <div class="cardbody">${k.warnings.map(w=>`<div class="error">${esc(w)}</div>`).join("")}</div></div>`;
+  }
+  if(k.G) badges.push(`<span class="badge">${k.G} partner</span>`);
+  if(k.ptp) badges.push('<span class="badge red">PTP</span>');
+  if(k.final) badges.push('<span class="badge red">Final K-1</span>');
+  if(k.amended) badges.push('<span class="badge red">Amended K-1</span>');
+  if(k.K2) badges.push('<span class="badge orange">K2 checked: lower-tier liabilities</span>');
+  if(k.K3) badges.push('<span class="badge red">K3 checked: guarantees / payment obligations</span>');
+  if(k.J_dec) badges.push(`<span class="badge red">J: decrease due to ${esc(k.J_dec)}</span>`);
+  const stmts=k.lines.filter(l=>l.stmt).length; if(stmts) badges.push(`<span class="badge orange">${stmts} statement${stmts>1?"s":""} to review</span>`);
+  if(k.lines.some(l=>l.box==="16")) badges.push('<span class="badge orange">K-3 attached</span>');
+
+  const warn=(k.warnings||[]).map(w=>`<div class="error">${esc(w)}</div>`).join("");
+
+  // Tax year (only when printed) — mm/dd/yy for UT
+  // Participation — always the first item on every K-1
+  out.push(item(RULES.PART.label,"",[],tri(RULES.PART.where,esc(RULES.PART.note),String(RULES.PART.why||"").split("\n").map(esc).join("<br>"))));
+  if(k.tax_begin||k.tax_end) out.push(item(RULES.TY.label,`${esc(k.tax_begin||"")} – ${esc(k.tax_end||"")}`,[],tri(RULES.TY.where,"","")));
+  // Defaults are Limited partner / Domestic partner — anything else gets a red note
+  if(k.G){const nd=k.G!=="Limited";
+    out.push(item(RULES.G.label, k.G==="Limited"?"Limited partner":"General partner",nd?[T.nd]:[T.fyi],
+      tri(RULES.G.where, nd?'<div class="warnline">General partner is checked — not the default (Limited partner). Review.</div>':"", esc(RULES.G.why_by_value[k.G])), nd));}
+  if(k.H1){const nd=k.H1!=="Domestic";
+    out.push(item(RULES.H1.label, k.H1+" partner",nd?[T.nd]:[T.fyi],
+      tri(RULES.H1.where, nd?'<div class="warnline">Foreign partner is checked — not the default (Domestic partner). Review.</div>':"", esc(RULES.H1.why_by_value[k.H1])), nd));}
+
+  const jr=Object.entries(k.J||{});
+  if(jr.length){
+    const ord=["Profit","Loss","Capital"]; jr.sort((a,b)=>ord.indexOf(a[0])-ord.indexOf(b[0]));
+    const c=changeTable(jr,pct);
+    const jd=k.J_dec?`<div class="warnline">Decrease is due to ${k.J_dec==="Sale"?"Sale":"Exchange"} of partnership interest — box checked. Review.</div>`:"";
+    out.push(item(RULES.J.label,"",(k.J_dec?[T.nd]:[T.fyi]).concat(c.warn?[T.change]:[]),tri(RULES.J.where,jd+c.html,""),!!k.J_dec));
+  }
+
+  const kr=Object.entries(k.K1||{}).filter(([,[b,e]])=>b||e);
+  if(kr.length){
+    const c=changeTable(kr,fmt);
+    const why=kr.map(([t])=>`<p style="margin:0 0 6px"><b>${esc(t)}:</b> ${esc(RULES.K1.why_by_value[t])}</p>`).join("");
+    out.push(item(RULES.K1.label,"",[T.enter].concat(c.warn?[T.change]:[]),tri(RULES.K1.where,c.html,why),true));
+  }
+  // K2: separate item with a regular note; K3: separate red item — both right after K1
+  if(k.K2) out.push(item(RULES.K2.label,"Checked",[],tri(RULES.K2.where,esc(RULES.K2.note),"")));
+  if(k.K3) out.push(item(RULES.K3.label,"Checked",[],tri(RULES.K3.where,`<div class="warnline">${esc(RULES.K3.note)}</div>`,""),true));
+  // L — capital account: always shown; contributions / other / withdrawals highlighted
+  if(k.L && Object.keys(k.L).length){
+    const HL=["Capital contributed during the year","Other increase (decrease)","Withdrawals and distributions"];
+    let any=false, tb="";
+    const LORD=["Beginning capital account","Capital contributed during the year","Current year net income (loss)","Other increase (decrease)","Withdrawals and distributions","Ending capital account"];
+    for(const n of LORD.filter(x=>x in k.L)){ const v=k.L[n];
+      const h=HL.includes(n)&&v; if(h) any=true;
+      const shown=fmt(v);
+      tb+=`<tr class="${h?(n==="Capital contributed during the year"?"lred":"lhl"):""}${n.startsWith("Ending")?" ltot":""}"><td>${esc(n)}</td><td class="n">${shown}</td></tr>`;
+    }
+    const L=k.L, calc=(L["Beginning capital account"]||0)+(L["Capital contributed during the year"]||0)+(L["Current year net income (loss)"]||0)+(L["Other increase (decrease)"]||0)-(L["Withdrawals and distributions"]||0);
+    const foot=Math.abs(calc-(L["Ending capital account"]||0))>1?`<div class="warnline">Capital account doesn't foot as read (calc ${fmt(calc)} vs ending ${fmt(L["Ending capital account"]||0)}) — check the K-1.</div>`:"";
+    out.push(item(RULES.L.label,"",any?[T.enter]:[],tri(RULES.L.where, foot+`<table class="mini">${tb}</table>`,""), any));
+  }
+  if(k.M==="Yes") out.push(item(RULES.M.label,"Yes",[T.stmt],tri(RULES.M.where,esc(RULES.M.note),esc(RULES.M.why)),true));
+  if(k.N && (k.N[0]||k.N[1])) out.push(item(RULES.N.label,`${fmt(k.N[0])} → ${fmt(k.N[1])}`,[T.fyi],tri(RULES.N.where,esc(RULES.N.note||""),esc(RULES.N.why))));
+
+  const zeros=[];
+  for(const l of k.lines){
+    if(!l.check && !l.stmt && l.amt===0){zeros.push(l.box+(l.code||""));continue;}
+    const [key,r,general]=ruleFor(l.box,l.code);
+    const title=r?(general?`Box ${l.box}${l.code?" "+l.code:""} — ${r.label.split("— ")[1]}`:r.label):`Box ${l.box}${l.code?" "+l.code:""}`;
+    const tags=[]; if(l.stmt) tags.push(T.stmt); if(l.manual) tags.push(T.man,`<a href="#" class="rmst noprint" data-page="${k.page}" data-src="${l.src}" title="Remove this added amount">remove</a>`); if(l.box==="16") tags.push(T.k3); if(general && l.code) tags.push(T.gen);
+    const value=l.check?"Checked":(l.amt==null?"See statement":fmt(l.amt));
+    if(!r){ out.push(item(title,value,[T.norule].concat(tags),tri("","Read the statement. No UT mapping yet.",""),true)); continue; }
+    const flag=r.flag?nbox(r.flag):"";   // Form 7217 note: orange (tag stays red)
+    out.push(item(title,value,tags.concat(r.flag?[T.f7217]:[]),tri(r.where,flag+esc(fill(r.note,k)).replace(/\n/g,"<br>"),esc(fill(r.why,k)),r.f1040,r.ut_warning,r.where_note,
+      (l.box==="11"&&l.code==="ZZ")?`<div class="schbox"><label><input type="checkbox" class="sch11" data-page="${k.page}" data-v="E"> Schedule E</label><label><input type="checkbox" class="sch11" data-page="${k.page}" data-v="1"> Schedule 1</label></div>`:
+      (l.box==="11"&&l.code==="S")?`<div class="schbox"><label><input type="checkbox" class="s11s" data-id="${k.page}|${l.s11n}" data-v="ST"> Short-term</label><label><input type="checkbox" class="s11s" data-id="${k.page}|${l.s11n}" data-v="LT"> Long-term</label></div>`:""),true));
+  }
+  const zl=zeros.length?`<div class="zeros">Printed as zero (not shown): ${zeros.map(z=>"Box "+esc(z)).join(", ")}</div>`:"";
+  let slots=""; for(let j=0;j<6;j++) slots+=`<span class="stslot"><select class="stsel" data-page="${k.page}" data-j="${j}">${OPTS}</select><input type="text" class="stamt" data-page="${k.page}" data-j="${j}" placeholder="Amount"></span>`;
+  const stl=`<div class="stline noprint" data-page="${k.page}"><span class="lbl">Statement amounts</span>${slots}</div>`;
+
+  return `<div class="card" id="k1-${i}" data-page="${k.page}"><div class="cardhead"><span class="pname">K-1 #${i+1} · ${esc(k.name||"(name not read)")}${k.ein?`<span class="ein">EIN ${esc(k.ein)}</span>`:""}</span><span style="display:flex;gap:18px;align-items:center"><button type="button" class="clr" data-page="${k.page}">Clear review marks</button><span class="utbox">UT # <input type="text" class="utn" data-page="${k.page}" maxlength="8"><span class="pv utp"></span></span><span>PDF page ${k.page}</span></span></div>
+    <div class="badges">${badges.join("")}</div>
+    <div class="pcwrap"><textarea class="pcom" data-page="${k.page}" placeholder="Partnership comments"></textarea><div class="pv pcomp"></div></div>
+    ${(k.address||[]).length?`<div class="addr">${(k.address||[]).map(esc).join("\n")}</div>`:""}
+    <div class="cardbody">${warn}${out.join("")}${zl}${stl}</div></div>`;
+}
+
+/* ---------------- statement amounts (K-1 says "STMT": pick box/code + type the amount) ---------------- */
+const OPTS='<option value=""></option>'+["11","13","20"].map(b=>`<optgroup label="Box ${b}">`+CODES.filter(c=>c[0]===b).map(c=>`<option value="${b}${c[1]}" title="${esc(c[2])}">${b}${c[1]} ${esc(c[2].length>16?c[2].slice(0,15).trim()+"…":c[2])}</option>`).join("")+"</optgroup>").join("");
+function parseAmt(t){
+  t=String(t||"").replace(/[$\s,]/g,""); if(!t) return null;
+  const neg=/^\(.*\)$/.test(t)||t.startsWith("-"); t=t.replace(/[()\-]/g,"");
+  if(!/^\d+(\.\d+)?$/.test(t)) return NaN; const v=parseFloat(t); return neg?-v:v;
+}
+function entriesFor(pg){   // committed + open slots, each tagged with where it came from (for "remove")
+  return (DONE[pg]||[]).map((e,i)=>[e[0],e[1],"d"+i]).concat((STMT[pg]||[]).map((e,j)=>[e[0],e[1],"s"+j]));
+}
+function allManual(){ const m={}; new Set([...Object.keys(DONE),...Object.keys(STMT)]).forEach(pg=>{const e=entriesFor(pg).map(x=>[x[0],x[1]]).filter(x=>x[0]||x[1]); if(e.length) m[pg]=e;}); return m; }
+const fmtIn=v=>(v<0?"-":"")+Math.abs(v).toLocaleString("en-US",{maximumFractionDigits:2});
+function mergeK1(k0,entries){
+  const k=JSON.parse(JSON.stringify(k0));
+  const add=(entries||[]).map(([key,a,src])=>[key,parseAmt(a),src]).filter(([key,v])=>key&&v!==null&&!isNaN(v)&&v!==0);
+  if(!add.length) return k;
+  const boxes=new Set(add.map(([key])=>key.match(/^\d+/)[0]));
+  // the box's generic "See statement" line (no amount) is replaced by the amounts typed in
+  k.lines=k.lines.filter(l=>!(boxes.has(l.box)&&l.amt==null&&l.stmt&&!l.check));
+  for(const [key,v,src] of add){const box=key.match(/^\d+/)[0], code=key.slice(box.length)||null;
+    k.lines.push({box,code,amt:v,stmt:true,check:false,raw:"added from statement",key,manual:true,src});}
+  const ob=b=>{const i=ORDER.indexOf(b); return i<0?999:i;};
+  k.lines=k.lines.map((l,i)=>[l,i]).sort((a,b)=>ob(a[0].box)-ob(b[0].box)||a[1]-b[1]).map(x=>x[0]);   // keep box order
+  return k;
+}
+function applyStmt(){
+  for(let i=0;i<K1S.length;i++){
+    const pg=K1S[i].page; K1S[i]=mergeK1(ORIG[pg],entriesFor(pg));
+    K1S[i].lines.forEach(l=>{ if(l.box==="11"&&l.code==="ZZ") l.sch1=(SCH[pg]==="1"); });   // 11 ZZ -> Sch 1 subtotal
+    let n=0; K1S[i].lines.forEach(l=>{ if(l.box==="11"&&l.code==="S"){ l.s11n=n; const v=S11[pg+"|"+n]; if(v) l.s11=v; else delete l.s11; n++; } });   // 11 S -> ST / LT
+  }
+}
+// Tabs view (the K-1 box inside the 1040 verification: /k1v/k1/<token>?tabs=1): one K-1 at a time, the tab = first 6 letters of the name.
+// Same cards, same code as the continuous list - only which cards are shown differs.
+const TABS={{ (request.args.get("tabs")=="1")|tojson }};
+let CURTAB=0;
+function applyTabs(){
+  if(!TABS||!K1S.length) return;
+  const seen={}, labels=K1S.map(k=>{const t=(k.name||"page "+k.page).replace(/^[^A-Za-z0-9]+/,"").slice(0,6).trim(); seen[t]=(seen[t]||0)+1; return seen[t]>1?t+" "+seen[t]:t;});
+  if(CURTAB>=K1S.length) CURTAB=0;
+  const bar=document.getElementById("ktabs"); bar.classList.remove("hidden");
+  bar.innerHTML=K1S.map((k,i)=>`<button type="button" class="ktab${i===CURTAB?" on":""}" data-i="${i}" title="${esc(k.name||"")}">${esc(labels[i])}</button>`).join("");
+  bar.querySelectorAll(".ktab").forEach(b=>b.addEventListener("click",()=>{CURTAB=+b.dataset.i; applyTabs(); window.scrollTo(0,0);}));
+  K1S.forEach((k,i)=>{const c=document.getElementById("k1-"+i); if(c) c.classList.toggle("k1hide",i!==CURTAB);});
+  document.getElementById("tocCard").style.display="none";
+}
+document.addEventListener("click",e=>{const a=e.target.closest&&e.target.closest('a[href^="#k1-"]'); if(TABS&&a){CURTAB=+a.getAttribute("href").slice(4); applyTabs();}});
+function renderAll(){
+  document.getElementById("k1s").innerHTML=K1S.map(renderK1).join("");
+  applyTabs();
+  document.querySelectorAll(".stline").forEach(line=>{
+    const sv=STMT[line.dataset.page]||[];
+    line.querySelectorAll(".stsel").forEach((sel,j)=>{sel.value=(sv[j]||[])[0]||"";});
+    line.querySelectorAll(".stamt").forEach((inp,j)=>{inp.value=(sv[j]||[])[1]||""; inp.classList.toggle("bad",isNaN(parseAmt(inp.value)));});
+  });
+  document.querySelectorAll(".sch11").forEach(c=>{c.checked=(SCH[c.dataset.page]===c.dataset.v);});
+  document.querySelectorAll(".s11s").forEach(c=>{c.checked=(S11[c.dataset.id]===c.dataset.v);});
+}
+async function refreshSummary(){
+  if(STATIC||location.protocol==="file:") return;
+  try{const r=await fetch(BASE+"/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:K1S})}); if(r.ok) SUMMARY=await r.json();}catch(e){}
+}
+function postStmt(){
+  if(!TOKEN||STATIC||location.protocol==="file:") return;
+  fetch(BASE+"/manual/"+TOKEN,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({manual:allManual(),flags:S11})}).catch(()=>{});
+}
+
+if(K1S.length){
+  K1S.sort((a,b)=>(a.name||"").localeCompare(b.name||"",undefined,{sensitivity:"base"}));
+  K1S.forEach(k=>{ORIG[k.page]=JSON.parse(JSON.stringify(k));});
+  STMT=(loadState().stmt)||{};
+  SCH=(loadState().sch11)||{};
+  S11=(loadState().s11s)||{};
+  DONE=(loadState().stmtDone)||{};
+  applyStmt();
+  document.getElementById("results").classList.remove("hidden");
+  renderAll();
+  document.getElementById("toc").innerHTML=K1S.map((k,i)=>`<a href="#k1-${i}">#${i+1} ${esc(k.name||"page "+k.page)}</a>`).join("");
+  const s1065=K1S.filter(k=>k.form==="1065").length;
+  const totStmt=K1S.reduce((s,k)=>s+k.lines.filter(l=>l.stmt).length,0);
+  const warnN=K1S.filter(k=>(k.warnings||[]).length).length;
+  document.getElementById("summary").textContent=`${K1S.length} K-1s detected · ${s1065} Form 1065 · ${totStmt} lines marked * / STMT · ${K1S.filter(k=>k.lines.some(l=>l.box==="16")).length} with K-3 attached`+(warnN?` · ${warnN} K-1s need a manual check`:"");
+}
+
+/* ---------------- verification, comments, UT #, print ---------------- */
+function syncPrint(){
+  document.querySelectorAll(".cmt").forEach(c=>{c.nextElementSibling.textContent=c.value});
+  document.querySelectorAll(".utn").forEach(u=>{u.nextElementSibling.textContent=u.value||"—"});
+  document.querySelectorAll(".pcom").forEach(t=>{t.nextElementSibling.textContent=t.value||"(no partnership comment)"});
+}
+function progress(){
+  const all=document.querySelectorAll(".vc").length, done=document.querySelectorAll(".vc:checked").length;
+  const el=document.getElementById("prog"); if(el) el.textContent=`Verified ${done} of ${all} items`;
+}
+function wire(){
+  const st=loadState(); st.items ||= {}; st.ut ||= {};
+  document.querySelectorAll(".item[data-id]").forEach(it=>{
+    const id=it.dataset.id, s0=st.items[id]||{}, vc=it.querySelector(".vc"), cm=it.querySelector(".cmt");
+    vc.checked=!!s0.v; cm.value=s0.c||""; it.classList.toggle("done",vc.checked);
+    const save=()=>{st.items[id]={v:vc.checked,c:cm.value}; it.classList.toggle("done",vc.checked); saveState(st); progress();};
+    vc.addEventListener("change",save); cm.addEventListener("input",save);
+  });
+  st.pc ||= {};
+  document.querySelectorAll(".pcom").forEach(t=>{
+    const pg=t.dataset.page; t.value=st.pc[pg]||""; PC[pg]=t.value;
+    t.addEventListener("input",()=>{st.pc[pg]=t.value; PC[pg]=t.value; saveState(st);});
+  });
+  document.querySelectorAll(".utn").forEach(u=>{
+    const pg=u.dataset.page; u.value=st.ut[pg]||""; UT[pg]=u.value;
+    u.addEventListener("input",()=>{st.ut[pg]=u.value; UT[pg]=u.value; saveState(st);});
+  });
+  // Statement amounts: save, merge into the K-1, re-draw, update totals + the 1040 verification
+  st.stmt ||= {};
+  document.querySelectorAll(".stsel, .stamt").forEach(el=>{
+    el.addEventListener("change",()=>{
+      const pg=el.dataset.page, line=el.closest(".stline");
+      if(el.classList.contains("stamt")){ const v=parseAmt(el.value); if(v!==null&&!Number.isNaN(v)) el.value=fmtIn(v); }   // 1,234
+      const vals=[...line.querySelectorAll(".stslot")].map(sl=>[sl.querySelector(".stsel").value, sl.querySelector(".stamt").value.trim()]);
+      if(vals.every(([a,b])=>!a&&!b)) delete st.stmt[pg]; else st.stmt[pg]=vals;
+      saveState(st); STMT=st.stmt;
+      const y=window.scrollY; applyStmt(); renderAll(); wire(); window.scrollTo(0,y);
+      refreshSummary(); postStmt();
+    });
+  });
+  // "remove" on an added statement amount
+  st.stmtDone ||= {};
+  document.querySelectorAll(".rmst").forEach(a=>a.addEventListener("click",ev=>{
+    ev.preventDefault();
+    const pg=a.dataset.page, src=a.dataset.src||"", i=+src.slice(1);
+    if(src[0]==="d"){ (st.stmtDone[pg]||[]).splice(i,1); if(!(st.stmtDone[pg]||[]).length) delete st.stmtDone[pg]; }
+    else if(src[0]==="s" && st.stmt[pg]){ st.stmt[pg][i]=["",""]; if(st.stmt[pg].every(([x,y])=>!x&&!y)) delete st.stmt[pg]; }
+    saveState(st); STMT=st.stmt; DONE=st.stmtDone;
+    const y=window.scrollY; applyStmt(); renderAll(); wire(); window.scrollTo(0,y);
+    refreshSummary(); postStmt();
+  }));
+  // Box 11 ZZ: Schedule E / Schedule 1 (one or the other) -> Ordinary Income subtotals
+  st.sch11 ||= {};
+  document.querySelectorAll(".sch11").forEach(c=>{
+    c.addEventListener("change",()=>{
+      const pg=c.dataset.page;
+      document.querySelectorAll(`.sch11[data-page="${pg}"]`).forEach(o=>{ o.checked = c.checked ? (o.dataset.v===c.dataset.v) : (o.dataset.v===c.dataset.v ? false : o.checked); });
+      if(c.checked) st.sch11[pg]=c.dataset.v; else delete st.sch11[pg];
+      saveState(st); SCH=st.sch11; applyStmt(); refreshSummary();
+    });
+  });
+  // Box 11 S: Short-term / Long-term (one or the other) -> capital gains in the summary + 1040 verification
+  st.s11s ||= {};
+  document.querySelectorAll(".s11s").forEach(c=>{
+    c.addEventListener("change",()=>{
+      const id=c.dataset.id;
+      document.querySelectorAll(`.s11s[data-id="${id}"]`).forEach(o=>{ if(o!==c) o.checked=false; });
+      if(c.checked) st.s11s[id]=c.dataset.v; else delete st.s11s[id];
+      saveState(st); S11=st.s11s; applyStmt(); refreshSummary(); postStmt();
+    });
+  });
+  // Clear review marks: instantly un-checks Verified and clears line comments for that partnership
+  document.querySelectorAll("button.clr").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const card=btn.closest(".card");
+      card.querySelectorAll(".item[data-id]").forEach(it=>{
+        it.querySelector(".vc").checked=false; it.querySelector(".cmt").value=""; it.classList.remove("done");
+        delete st.items[it.dataset.id];
+      });
+      saveState(st); progress();
+    });
+  });
+  progress();
+}
+if(K1S.length){
+  document.getElementById("summary").insertAdjacentHTML("beforeend",' · <span class="progress" id="prog"></span>');
+  wire();
+  if(Object.keys(STMT).length||Object.keys(DONE).length||Object.keys(S11).length){ refreshSummary(); postStmt(); } else if(Object.keys(SCH).length) refreshSummary();
+}
+window.addEventListener("beforeprint",syncPrint);
+/* ---------------- Save / load my entries (backup of what this browser stores for this K-1 PDF) ---------------- */
+(function(){
+  const sb=document.getElementById("savebtn"), lb=document.getElementById("loadbtn"), lf=document.getElementById("loadfile");
+  if(!sb||!lb||!lf) return;
+  sb.addEventListener("click",()=>{
+    const data={app:"K-1 Interpreter entries",file:FILE,saved:new Date().toISOString(),state:loadState()};
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,1)],{type:"application/json"}));
+    a.download=(FILE||"K-1").replace(/\.pdf$/i,"")+"_K1_entries.json";
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  lb.addEventListener("click",()=>lf.click());
+  lf.addEventListener("change",async()=>{
+    const f=lf.files[0]; if(!f) return;
+    try{
+      const d=JSON.parse(await f.text());
+      if(!d||!d.state||typeof d.state!=="object") throw new Error("not an entries file");
+      const other=d.file&&d.file!==FILE?`\n\nNote: these entries were saved for "${d.file}" — this page is "${FILE}".`:"";
+      if(!confirm("Replace the entries in this browser with the ones in "+f.name+"?"+other)) {lf.value="";return;}
+      saveState(d.state); location.reload();
+    }catch(e){ alert("Couldn't read "+f.name+": "+e.message); }
+    lf.value="";
+  });
+})();
+const pb=document.getElementById("printbtn"); if(pb) pb.addEventListener("click",()=>{syncPrint(); window.print();});
+
+/* ---------------- Excel + income summary ---------------- */
+async function downloadExcel(msgEl){
+  const say=t=>{if(msgEl) msgEl.innerHTML=t};
+  if(STATIC||location.protocol==="file:"){say('<div class="error">This saved report can\'t build Excel. Run run.bat and upload the PDF — or use the _Income_Summary.xlsx written next to the PDF by the command-line run.</div>');return;}
+  const st=loadState();
+  say('<p class="hint">Building Excel…</p>');
+  try{
+    const r=await fetch(BASE+"/excel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:K1S,ut:UT,pc:PC,items:st.items||{},filename:FILE,corr:st.corr||{}})});
+    if(!r.ok) throw new Error("server said "+r.status);
+    const blob=await r.blob(); const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=(FILE.replace(/\.pdf$/i,"")||"K-1")+"_Income_Summary.xlsx";
+    document.body.appendChild(a); a.click(); a.remove(); say("");
+  }catch(e){say(`<div class="error">Couldn't build the Excel file (${esc(e.message)}). Is run.bat still running?</div>`);}
+}
+window.downloadExcel=downloadExcel;
+// Upload to 1040: the Income Summary lines (with the corrections typed on the totals tab) -> the 1040 verification
+async function uploadTo1040(msgEl){
+  const say=t=>{if(msgEl) msgEl.innerHTML=t};
+  if(STATIC||location.protocol==="file:"){say('<div class="error">This saved report can\'t upload. Open the K-1 page from run.bat.</div>');return;}
+  say('<p class="hint">Uploading…</p>');
+  try{
+    const st=loadState();
+    const r=await fetch(BASE+"/upload/"+(TOKEN||"single"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:K1S,filename:FILE,corr:st.corr||{}})});
+    const j=await r.json(); if(!r.ok||!j.ok) throw new Error(j.error||("server said "+r.status));
+    say(`<p class="hint"><b>Uploaded to 1040:</b> ${j.k1s} K-1${j.k1s===1?"":"s"}, ${j.lines} income line${j.lines===1?"":"s"}. They show in the 1040 verification income summary (refresh it if it is already open). Total uploaded so far: ${j.k1s_total??j.k1s} K-1s.</p>`);
+    try{ if(window.parent&&window.parent!==window) window.parent.postMessage({k1vUploaded:true},location.origin); }catch(e){}
+  }catch(e){say(`<div class="error">Couldn't upload (${esc(e.message)}).</div>`);}
+}
+const ub=document.getElementById("upbtn"); if(ub) ub.addEventListener("click",()=>uploadTo1040(document.getElementById("xlmsg")));
+const xb=document.getElementById("xlbtn"); if(xb) xb.addEventListener("click",()=>downloadExcel(document.getElementById("xlmsg")));
+
+function corrMap(){ return (loadState().corr)||{}; }
+function pAmt(t){ t=String(t??"").replace(/[$\s,]/g,""); if(!t) return null; const n=/^\(.*\)$/.test(t)||t.startsWith("-"); t=t.replace(/[()\-]/g,""); if(!/^\d+(\.\d+)?$/.test(t)) return NaN; const v=parseFloat(t); return n?-v:v; }
+const plain=n=>(n<0?"-":"")+Math.abs(n).toLocaleString("en-US",{maximumFractionDigits:2});
+// Internal Income Summary. ro=false: Correction column = input boxes (soft pre-filled with Federal) + live totals (totals tab).
+// ro=true: corrected numbers as text (reviewer HTML).
+function summaryHTML(ro){
+  const C=corrMap(), pageUT=p=>UT[p]?` <span class="cnt">(UT #${esc(UT[p])})</span>`:"";
+  const cv=(rid,fed)=>{const v=pAmt(C[rid]); return (v===null||Number.isNaN(v))?fed:v;};
+  const cell=(rid,fed,sec,sub)=>{
+    if(ro){const v=cv(rid,fed), ch=C[rid]!=null&&C[rid]!==""&&!Number.isNaN(pAmt(C[rid])); return `<td class="n vb${ch?" chg":""}">${v||ch?fmt(v):""}</td>`;}
+    return `<td class="n vb"><input class="corr" data-rid="${esc(rid)}" data-fed="${fed}" data-sec="${esc(sec)}"${sub?` data-sub="${esc(sub)}"`:""} value="${esc(C[rid]??"")}" placeholder="${fed?plain(fed):""}"></td>`;
+  };
+  let h=`<table class="t isum"><tr><th>Document/s</th><th class="n">Federal</th><th class="n">Correction</th><th>Comment</th></tr>`;
+  let gtC=0;
+  const docRow=(r,sec)=>`<tr><td>${esc(r.doc)}${pageUT(r.page)}</td><td class="n vb blue">${fmt(r.amt)}</td>${cell(r.rid,r.amt,sec,r.sub)}<td class="cm">${esc(r.comment)}</td></tr>`;
+  for(const s of SUMMARY.sections){
+    h+=`<tr class="sp"><td></td><td class="vb"></td><td class="vb"></td><td></td></tr>`;
+    let secC=0;
+    if(s.subs){
+      for(const sb of s.subs){
+        h+= sb.rows.length? sb.rows.map(r=>docRow(r,s.key)).join("") : `<tr><td>&nbsp;</td><td class="vb"></td><td class="vb"></td><td></td></tr>`;
+        const subC=sb.rows.reduce((t,r)=>t+cv(r.rid,r.amt),0); secC+=subC;
+        h+=`<tr class="sub"><td>Subtotal — ${esc(sb.label)}</td><td class="n vb">${fmt(sb.total)}</td><td class="n vb" data-csub="${esc(s.key+"|"+sb.key)}">${fmt(subC)}</td><td></td></tr>`;
+      }
+    } else {
+      const rows=s.rows.length?s.rows:[null,null];
+      for(const r of rows){ if(r){h+=docRow(r,s.key); secC+=cv(r.rid,r.amt);} else h+=`<tr><td>&nbsp;</td><td class="vb"></td><td class="vb"></td><td></td></tr>`; }
+    }
+    s.adj.forEach((a,i)=>{ const rid=s.adj_rids[i]; secC+=cv(rid,0);
+      h+=`<tr><td class="red">${esc(a)}</td><td class="vb"></td>${cell(rid,0,s.key,"")}<td class="cm">Enter in Correction — carryforwards aren't added automatically (see Carryforwards tab in Excel)</td></tr>`; });
+    gtC+=secC;
+    h+=`<tr class="tot"><td>${esc(s.label)}</td><td class="n vb">${s.total?fmt(s.total):"-"}</td><td class="n vb" data-ctot="${esc(s.key)}">${secC?fmt(secC):"-"}</td><td></td></tr>`;
+  }
+  h+=`<tr class="gt"><td>Total Income</td><td class="n">${fmt(SUMMARY.total_income)}</td><td class="n" id="cgt">${fmt(gtC)}</td><td></td></tr></table>`;
+  return h;
+}
+
+/* ---------------- totals + 8582 ---------------- */
+function utTag(i){const u=UT[K1S[i].page];return u?` <span class="cnt">· UT # ${esc(u)}</span>`:""}
+function totalsCards(ro){
+  const byKey={};
+  K1S.forEach((k,i)=>k.lines.forEach(l=>{
+    if(k.form!=="1065"||l.check||l.amt==null||l.amt===0) return;   // 1065 box numbers only (1120-S boxes differ)
+    const key=l.box+(l.code||"");
+    (byKey[key] ||= {box:l.box,code:l.code,sum:0,rows:[]});
+    byKey[key].sum+=l.amt; byKey[key].rows.push([i,k.name,l.amt]);
+  }));
+  const keys=Object.keys(byKey).sort((a,b)=>{
+    const A=byKey[a],B=byKey[b];
+    return (ORDER.indexOf(A.box)-ORDER.indexOf(B.box)) || (A.code||"").length-(B.code||"").length || (A.code||"").localeCompare(B.code||"");
+  });
+  const rows=keys.map(key=>{
+    const g=byKey[key]; const [,r,general]=ruleFor(g.box,g.code);
+    const label=r?(general?`Box ${g.box} ${g.code||""} — ${r.label.split("— ")[1]}`:r.label):`Box ${g.box} ${g.code||""}`;
+    const det=g.rows.map(([i,n,a])=>`<tr><td style="padding-left:24px">#${i+1} ${esc(n)}${utTag(i)}</td><td class="n">${fmt(a)}</td></tr>`).join("");
+    return `<tr class="grp" onclick="this.nextElementSibling.classList.toggle('h')"><td>▸ ${esc(label)} <span class="cnt">(${g.rows.length})</span></td><td>${esc(r?r.where:"")}</td><td><span class="f">${esc(r?r.f1040:"")}</span></td><td class="n"><b>${fmt(g.sum)}</b></td></tr><tr class="h"><td colspan="4" style="padding:0"><table class="t">${det}</table></td></tr>`;
+  }).join("");
+  const k3=K1S.filter(k=>k.lines.some(l=>l.box==="16")).length;
+  const stmtOnly=[]; K1S.forEach((k,i)=>k.lines.forEach(l=>{if(k.form==="1065"&&!l.check&&l.amt==null&&l.stmt) stmtOnly.push(`#${i+1} ${esc(k.name)} — Box ${l.box}${l.code?" "+l.code:""}`)}));
+
+  // 8582
+  const passiveBoxes=Object.keys(RULES).filter(k=>RULES[k].passive);
+  let act="",excl="",inc=0,loss=0,n=0;
+  K1S.forEach((k,i)=>{
+    if(k.form!=="1065") return;
+    const items=k.lines.filter(l=>passiveBoxes.includes(l.box)&&!l.code&&l.amt);
+    if(!items.length){excl+=(excl?"; ":"")+`#${i+1} ${esc(k.name)}`;return;}
+    n++;
+    const cls=k.ptp?"PTP — losses only offset income from the same PTP; keep separate":
+      k.G==="Limited"?"Passive — limited partner (material participation only via tests 1, 5 or 6)":"Passive unless the partner materially participates — confirm";
+    const net=items.reduce((s,l)=>s+l.amt,0); const a=net>0?net:0, b=net<0?net:0;
+    if(!k.ptp){inc+=a;loss+=b;}
+    const multi=k.lines.some(l=>l.box==="23")?'<br><span class="f" style="color:#8B0000">Box 23 checked — split into separate activities per statement</span>':"";
+    act+=`<tr><td>#${i+1} ${esc(k.name)}${utTag(i)}${multi}</td><td>${esc(cls)}</td><td>${items.map(l=>esc(RULES[l.box].label)+": "+fmt(l.amt)).join("<br>")}</td><td class="n">${fmt(a)}</td><td class="n">${fmt(b)}</td><td class="n">prior-yr</td></tr>`;
+  });
+  return `  <div class="card"><div class="cardhead">Internal Income Summary</div>${summaryHTML(ro)}<div class="cardbody"><p class="hint">K-1 amounts only; W-2, IRA, pension, Social Security and Schedule C lines are left for other documents. Correction starts equal to Federal (grey) — type your own number to change it; totals update and the Excel download uses your numbers. Carryforwards are not added (Excel → Carryforwards tab).</p></div></div>
+  <div class="card"><div class="cardhead">Totals by box / code</div><table class="t"><tr><th>Box / code</th><th>Where (UT)</th><th>1040</th><th class="n">Total</th></tr>${rows}
+  <tr><td>Box 16 — Schedule K-3 attached</td><td></td><td>Review K-3</td><td class="n"><b>${k3} K-1s</b></td></tr></table>
+  ${stmtOnly.length?`<div class="cardbody"><p class="lbl">Amounts on statements only (not totaled)</p><ul style="font-size:.86rem;margin:0">${stmtOnly.map(s=>`<li>${s}</li>`).join("")}</ul></div>`:""}</div>
+  <div class="card"><div class="cardhead">Form 8582 — Passive activities (${n})</div><div class="cardbody">
+  <table class="t"><tr><th>Activity</th><th>Classification</th><th>Passive items</th><th class="n">Net income</th><th class="n">Net loss</th><th class="n">Prior-yr unallowed</th></tr>${act||'<tr><td colspan="6">No passive items.</td></tr>'}
+  <tr><td colspan="3"><b>Total (excluding PTPs)</b></td><td class="n"><b>${fmt(inc)}</b></td><td class="n"><b>${fmt(loss)}</b></td><td class="n">—</td></tr></table>
+  <p class="hint"><b>Overall current-year passive net:</b> ${fmt(inc+loss)} (before prior-year unallowed losses).</p>
+  ${excl?`<p class="lbl" style="margin-top:16px">Not on the 8582 — no box 1, 2, 3 or 10 amounts (portfolio items only)</p><p style="font-size:.84rem;margin:0;line-height:1.6">${excl}</p>`:""}
+  <div class="banner" style="margin:16px 0 0">Prior-year unallowed losses and the §179 carryover aren't on the K-1. For each activity, pull them from the prior-year Form 8582 worksheets (unallowed loss) and Form 4562 line 13, and enter them in UT on Passive Activity Info and Carryovers, Sec 179 Carryover (Non-QBI pre-2018 / For QBI and Regular Tax / AMT columns). Grouping elections: prior-year grouping statement.</div>
+  </div></div>`;
+}
+const TOTALS_CSS=`
+    table.t{width:100%;border-collapse:collapse;font-size:.88rem;background:#fff}
+    table.t th{background:#003366;color:#fff;text-align:left;padding:8px 12px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+    table.t td{padding:7px 12px;border-bottom:1px solid var(--grey);vertical-align:top}
+    table.t .n{text-align:right;font-variant-numeric:tabular-nums}
+    table.isum td{padding:5px 12px} table.isum .vb{border-left:2px solid #000;border-right:2px solid #000} table.isum tr.sp td{height:10px;padding:0}
+    table.isum tr.tot td{background:#EDEDED;border-bottom:1px solid #000} table.isum tr.gt td{background:#EDEDED;font-weight:700;border-top:1px solid #000;border-bottom:2px solid #000}
+    table.isum .red{color:#FF0000} table.isum .blue{color:#0000FF} table.isum .cm{font-size:.8rem;color:#7F6000}
+    table.isum tr.tot td{font-weight:700} table.isum tr.sub td{background:#F5F5F5;font-weight:700;font-size:.84rem;border-bottom:1px solid #BDBDBD} table.isum tr.sub td:first-child{padding-left:28px}
+    table.isum input.corr{width:120px;text-align:right;padding:3px 6px;border:1px solid var(--grey);border-radius:4px;font:inherit;font-variant-numeric:tabular-nums;color:#C00000;font-weight:700}
+    table.isum input.corr::placeholder{color:#9CA3AF;font-weight:400} table.isum input.corr.bad{background:var(--warnbg);border-color:var(--warn)} table.isum td.chg{color:#C00000;font-weight:700}
+    @media print{table.isum input.corr{border:none;padding:0}}
+    tr.grp{cursor:pointer} tr.grp:hover td{background:#F7F7FB} tr.h{display:none} .f{color:var(--green);font-weight:600;font-size:.8rem} .cnt{color:#9CA3AF;font-size:.8rem}`;
+function buildTotals(){
+  const css=document.querySelector("style").textContent+TOTALS_CSS;
+  const html=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>K-1 Totals & 8582</title><style>${css}</style></head><body><div class="wrap">
+  <h1>K-1 Totals &amp; 8582</h1><p class="subtitle">${K1S.length} K-1s · ${esc(FILE)} · click a row to see the K-1s behind each total.</p>
+  <div class="noprint" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap"><button onclick="if(window.opener&&!window.opener.closed){window.opener.focus();window.close();}else{history.back();}">&larr; Back to K-1s</button><button onclick="window.print()" class="alt">Print PDF</button><button class="alt" onclick="window.opener&&window.opener.downloadExcel(document.getElementById('xm'))">Download Excel summary</button><span id="xm"></span><button onclick="document.querySelectorAll('tr.h').forEach(r=>r.classList.remove('h'))">Expand all</button></div>
+${totalsCards(false)}</div>
+<script>
+const SKEY=${JSON.stringify(SKEY)};
+function P(t){t=String(t||"").replace(/[$\\s,]/g,"");if(!t)return null;const n=/^\\(.*\\)$/.test(t)||t.startsWith("-");t=t.replace(/[()\\-]/g,"");if(!/^\\d+(\\.\\d+)?$/.test(t))return NaN;const v=parseFloat(t);return n?-v:v;}
+function F(n){return n?'<span class="mny'+(n<0?' neg':'')+'"><span class="cur">$ </span>'+(n<0?"-":"")+Math.abs(n).toLocaleString("en-US",{maximumFractionDigits:2})+'</span>':"-";}
+function recalc(){
+  const tot={},sub={},c={};
+  document.querySelectorAll("input.corr").forEach(i=>{
+    const v=P(i.value),bad=Number.isNaN(v); i.classList.toggle("bad",bad);
+    if(i.value.trim()&&!bad) c[i.dataset.rid]=i.value.trim();
+    const n=(v===null||bad)?+i.dataset.fed:v;
+    tot[i.dataset.sec]=(tot[i.dataset.sec]||0)+n;
+    if(i.dataset.sub) sub[i.dataset.sec+"|"+i.dataset.sub]=(sub[i.dataset.sec+"|"+i.dataset.sub]||0)+n;
+  });
+  document.querySelectorAll("[data-ctot]").forEach(td=>td.innerHTML=F(tot[td.dataset.ctot]||0));
+  document.querySelectorAll("[data-csub]").forEach(td=>td.innerHTML=F(sub[td.dataset.csub]||0)||"-");
+  document.getElementById("cgt").innerHTML=F(Object.values(tot).reduce((a,b)=>a+b,0));
+  try{const st=JSON.parse(localStorage.getItem(SKEY)||"{}"); st.corr=c; localStorage.setItem(SKEY,JSON.stringify(st));}catch(e){}
+}
+document.querySelectorAll("input.corr").forEach(i=>i.addEventListener("input",recalc));
+<\/script></body></html>`;
+  const w=window.open("","_blank");
+  if(!w){document.getElementById("calc").insertAdjacentHTML("afterend",'<div class="error">Allow pop-ups for this page to open the totals tab.</div>');return;}
+  w.document.open(); w.document.write(html); w.document.close();
+}
+function commitStmt(){
+  const st=loadState(); st.stmt ||= {}; st.stmtDone ||= {}; let moved=0;
+  for(const pg of Object.keys(st.stmt)){
+    const keep=[];
+    for(const [key,a] of st.stmt[pg]){
+      const v=parseAmt(a);
+      if(key&&v!==null&&!Number.isNaN(v)&&v!==0){ (st.stmtDone[pg] ||= []).push([key,fmtIn(v)]); moved++; }
+      else if(key||a) keep.push([key,a]);          // incomplete / bad entries stay in the slots
+    }
+    if(keep.length) st.stmt[pg]=keep; else delete st.stmt[pg];
+  }
+  if(!moved) return;
+  saveState(st); STMT=st.stmt; DONE=st.stmtDone;
+  const y=window.scrollY; applyStmt(); renderAll(); wire(); window.scrollTo(0,y);
+  postStmt();
+}
+const cb=document.getElementById("calc"); if(cb) cb.addEventListener("click",()=>{ commitStmt(); buildTotals(); });
+
+/* ---------------- Export for reviewer: one self-contained HTML file ----------------
+   Keeps: line comments, partnership comments, UT #, flags, totals, 8582 (read-only text).
+   Clears: every Verified box, so the reviewer ticks them. Opens in any browser, no Python. */
+function exportReviewer(){
+  if(!K1S.length) return;
+  const today=new Date().toLocaleDateString("en-US");
+  const k1=document.getElementById("k1s").cloneNode(true);
+  // live values are on the page's elements, not the clone — read them by position
+  const liveC=[...document.querySelectorAll("#k1s .cmt")].map(e=>e.value.trim());
+  const liveU=[...document.querySelectorAll("#k1s .utn")].map(e=>e.value.trim());
+  const liveP=[...document.querySelectorAll("#k1s .pcom")].map(e=>e.value.trim());
+  k1.querySelectorAll(".cmt").forEach((e,i)=>{const s=document.createElement("span");s.className="rcmt"+(liveC[i]?"":" none");s.textContent=liveC[i];e.replaceWith(s);});
+  k1.querySelectorAll(".utn").forEach((e,i)=>{const s=document.createElement("span");s.className="rutn";s.textContent=liveU[i]||"—";e.replaceWith(s);});
+  k1.querySelectorAll(".pcom").forEach((e,i)=>{
+    const w=e.closest(".pcwrap");
+    if(!liveP[i]){w.remove();return;}
+    const d=document.createElement("div");d.className="rpcom";d.textContent=liveP[i];e.replaceWith(d);
+  });
+  k1.querySelectorAll(".schbox").forEach(b=>{const c=b.querySelector(".s11s"); if(!c) return; const v=S11[c.dataset.id]; const d=document.createElement("div"); d.className="schbox"; d.textContent="Capital gain: "+(v==="ST"?"Short-term":v==="LT"?"Long-term":"not ticked"); b.replaceWith(d);});
+  k1.querySelectorAll(".schbox").forEach(b=>{if(!b.querySelector(".sch11")) return; const pg=b.querySelector(".sch11").dataset.page; const d=document.createElement("div"); d.className="schbox"; d.textContent="Reported on: "+(SCH[pg]==="1"?"Schedule 1":"Schedule E"); b.replaceWith(d);});
+  k1.querySelectorAll(".pv, button.clr, .stline").forEach(e=>e.remove());
+  k1.querySelectorAll(".vc").forEach(e=>{e.checked=false;e.removeAttribute("checked");});
+  k1.querySelectorAll(".item.done").forEach(e=>e.classList.remove("done"));
+  const toc=document.getElementById("toc").innerHTML;
+  const total=k1.querySelectorAll(".vc").length;
+  const css=document.querySelector("style").textContent+TOTALS_CSS+`
+    .rcmt{flex:1;min-width:0;padding:6px 9px;border-radius:6px;font-size:.85rem;background:#FEF3E2;border:1px solid #F5C58A;white-space:pre-wrap}
+    .rcmt.none{background:none;border-color:transparent}
+    .rutn{font-weight:700;font-size:.9rem;min-width:40px;text-align:center}
+    .rpcom{white-space:pre-wrap;font-size:.88rem;background:#FEF3E2;border:1px solid #F5C58A;border-radius:6px;padding:8px 10px}
+    .revhead{background:#F1F5F4;border-left:4px solid #294F4C;color:#294F4C;padding:12px 16px;border-radius:6px;margin-bottom:18px;font-size:.9rem;line-height:1.5}
+    .vprog{position:sticky;top:0;z-index:5;background:#fff;padding:8px 0;font-weight:700;color:var(--dark);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+    @media print{.vprog button{display:none}.vprog{position:static}}`;
+  const script=`<script>
+(function(){
+  var all=document.querySelectorAll(".vc"), el=document.getElementById("vcount");
+  function upd(){var d=0;all.forEach(function(c){if(c.checked)d++;});el.textContent="Verified "+d+" of "+all.length+" items";}
+  all.forEach(function(c){c.addEventListener("change",function(){c.closest(".item").classList.toggle("done",c.checked);upd();});});
+  upd();
+})();
+<\/script>`;
+  const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-1 Review — ${esc(FILE)}</title><style>${css}</style></head><body><div class="wrap">
+<h1>K-1 Interpretation — Review</h1>
+<p class="subtitle">${esc(FILE)} · ${K1S.length} K-1s · exported ${today}</p>
+<div class="revhead"><b>For the reviewer:</b> preparer comments, partnership comments and UT # are shown highlighted (read-only). Tick <b>Verified</b> on each item as you review it.
+Ticks are <b>not saved</b> when this file is closed or refreshed. To keep a signed-off copy, press <b>Ctrl+P → Save as PDF</b> when you're done.</div>
+<div class="vprog"><span id="vcount">Verified 0 of ${total} items</span><button type="button" class="alt" style="padding:6px 16px;font-size:.85rem" onclick="window.print()">Print / Save as PDF</button></div>
+<div class="card noprint"><div class="cardhead">Jump to K-1</div><div class="cardbody"><div class="toc">${toc}</div></div></div>
+${k1.innerHTML}
+<h1 style="margin-top:40px">Totals &amp; 8582</h1><p class="subtitle">Click a row to see the K-1s behind each total.</p>
+${totalsCards(true)}
+<p class="disclaimer">Internal preparer aid — contains client information; internal use only. Always compare the values against the K-1, its statements and the K-3.</p>
+</div>${script}</body></html>`;
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+  a.download=(FILE.replace(/\.pdf$/i,"")||"K-1")+"_K1_for_review.html";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+const rb=document.getElementById("revbtn"); if(rb) rb.addEventListener("click",exportReviewer);
+</script>
+</body>
+</html>

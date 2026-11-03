@@ -7,33 +7,19 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+{% from '_steps.html' import steps %}
 <div class="wrap">
   <h1>Mask info for AI agent</h1>
-  <p class="subtitle">Pick the documents, check what gets masked, mask, then save the redacted set for the AI (and, if you want, a plain copy of the originals).</p>
 
-  <div class="tabs noprint">
-    <a class="" href="/summary/{{ token }}">1 · Summary</a>
-    <a class="" href="/verify/{{ token }}">2 · Verify return</a>
-    <a class="on" href="/mask/{{ token }}">3 · Mask for AI (if needed)</a>
-    <a class=" soon" href="/ai/{{ token }}">4 · AI review</a>
-  </div>
+  {{ steps(token, '') }}
 
   {# ------------------------------------------------ what to mask #}
   <div class="card">
-    <div class="cardhead">1 · What to mask <span class="sub">SSNs and city / ZIP pre-filled from the prior-year return — type the rest</span></div>
+    <div class="cardhead">1 · What to mask</div>
     <div class="cardbody">
-      <p class="note" style="margin-top:0">One item per box. <b>Names:</b> type only the part of the name that must be hidden — usually the last name
-        (e.g. <i>Smith</i>, not <i>John Smith</i>) — first names stay visible so we know how to call the client.
-        Need more than 6? Click <b>Add more ▸</b> and type them separated by commas.</p>
       <div id="mfields"></div>
-      <div class="banner" style="margin-top:14px">
-        Masked automatically (only the obvious): SSNs printed as 123-45-6789 (last 4 digits stay), e-mail addresses (xxx@xxx.xxx),
-        and the ZIP after a state (+ the street line above it). Everything typed above is masked wherever it appears — SSNs keep their last 4 digits.
-        Always masked on every document: {{ always|join(', ') }}.
-        Never masked: payer / employer names and dollar amounts.
-      </div>
       <div class="field" style="max-width:520px"><label>PDF passwords (if any — comma separated)</label>
-        <div class="pick"><input id="pw" placeholder="Passwords in the file name (PW-1234) are tried automatically"></div></div>
+        <div class="pick"><input id="pw"></div></div>
     </div>
   </div>
 
@@ -42,16 +28,14 @@
     <div class="cardhead">2 · Documents to mask <span class="sub" id="dcnt"></span></div>
     <div class="cardbody">
       <div class="bar" style="margin:0 0 10px">
-        <button type="button" class="light small pickbtn" onclick="addDocs('files')">Add documents…</button>
-        <button type="button" class="light small pickbtn" onclick="addDocs('folderfiles')">Add all files in a folder…</button>
-        <button type="button" class="light small" onclick="addStep1()">Re-add the documents from step 1</button>
-        <button type="button" class="light small" onclick="FILES=[];drawFiles()">Clear list</button>
+        <button type="button" class="pickbtn" onclick="addDocs('files')">Add documents…</button>
+        <button type="button" class="pickbtn" onclick="addDocs('folderfiles')">Add all files in a folder…</button>
+        <button type="button" onclick="addStep1()">Re-add the documents from step 1</button>
+        <button type="button" onclick="FILES=[];drawFiles()">Clear list</button>
         <span id="pickMsg" class="note"></span>
       </div>
       <table class="v" id="fileTable"></table>
       <button type="button" id="go" onclick="runMask()">Mask documents</button> <span id="wait" class="note hidden">Masking… large PDFs take a few seconds each.</span>
-      <p class="hint">Masked: PDF (text kept — true redaction), Word .docx, Excel .xlsx, text / CSV / e-mail (.eml) files.
-        Pictures, old Word .doc, Outlook .msg and other formats can't be masked — they're listed with a warning and never saved as "redacted".</p>
     </div>
   </div>
 
@@ -64,19 +48,15 @@
       <table class="v" id="resTable"></table>
       <div class="bar">
         <button type="button" onclick="saveDocs('redacted')">Save redacted documents + AI report…</button>
-        <button type="button" class="alt" onclick="saveDocs('copy')">Save unredacted documents (copy)…</button>
+        <button type="button" onclick="saveDocs('copy')">Save unredacted documents (copy)…</button>
         <span id="saved" class="note"></span>
       </div>
-      <p class="note">Redacted documents are saved as <b>redacted_&lt;file name&gt;</b> — only the ones that were masked — together with
-        <b>ai_report.json</b> (for the skill) and <b>ai_report.md</b> (to read): income summary, carryovers, Karbon answers, Schedule C and the
-        document list, masked with the same values. Save into the client's folder under Claude_1040_skill.
-        "Unredacted" saves a plain copy of every document in the list, names unchanged. You choose the folder each time.</p>
     </div>
   </div>
 
   <div class="bar noprint">
     <a class="btn alt" href="/verify/{{ token }}">← Verify return</a>
-    <a class="btn soon" href="/ai/{{ token }}">AI review →</a>
+    <a class="btn soon" href="/ai/{{ token }}">AI Doc Review →</a>
   </div>
   <p class="disclaimer">Masking runs on this computer. Always open a couple of the redacted files before sending them anywhere. Contains client data — internal use only.</p>
 </div>
@@ -97,10 +77,10 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 function drawFiles() {
   const t = document.getElementById('fileTable');
   t.innerHTML = FILES.length ? '<tr><th>Document</th><th>Type</th><th>Can be masked</th><th></th></tr>' + FILES.map((f, i) =>
-    `<tr class="${SOFT.has(f.toLowerCase()) ? 'soft' : ''}"><td class="b" title="${esc(f)}">${esc(base(f))}${SOFT.has(f.toLowerCase()) ? ' <span class="note">· ticked “AI” on the summary — remove if not needed</span>' : ''}</td><td>${esc(ext(f))}</td>
+    `<tr class="${SOFT.has(f.toLowerCase()) ? 'soft' : ''}"><td class="b" title="${esc(f)}">${esc(base(f))}</td><td>${esc(ext(f))}</td>
       <td>${MASKABLE.has(ext(f)) ? '<span class="pill yes">Yes</span>' : '<span class="pill no">No — format</span>'}</td>
       <td><button type="button" class="light small" onclick="FILES.splice(${i},1);drawFiles()">✕</button></td></tr>`).join('')
-    : '<tr><td class="note">No documents yet — add them with the buttons above.</td></tr>';
+    : '<tr><td class="note">No documents yet.</td></tr>';
   document.getElementById('dcnt').textContent = FILES.length ? FILES.length + ' documents' : '';
 }
 function addPaths(ps, soft) { ps.forEach(p => { if (!FILES.some(f => f.toLowerCase() === p.toLowerCase())) FILES.push(p);
@@ -116,10 +96,10 @@ let PEOPLE = {{ people|safe }};
 function drawFields() {
   document.getElementById('mfields').innerHTML = MF.map(([k, l, h]) => {
     const v = PEOPLE[k] || [], boxes = v.slice(0, 6), more = v.slice(6).join(', ');
-    return `<div class="mrow"><div class="mlabel">${l}${h ? `<span class="note">${h}</span>` : ''}</div>
+    return `<div class="mrow"><div class="mlabel">${l}</div>
       <div class="mboxes ${k === 'other' || k === 'streets' ? 'wide' : ''}">${[0,1,2,3,4,5].map(i => `<input data-k="${k}" data-i="${i}" value="${esc(boxes[i] || '')}">`).join('')}</div>
       <a href="#" class="more" onclick="this.closest('.mrow').classList.toggle('open');return false">Add more <span class="arrow">▸</span></a>
-      <textarea class="morebox" data-k="${k}" data-i="more" placeholder="More ${l.toLowerCase()}, separated by commas">${esc(more)}</textarea></div>`;
+      <textarea class="morebox" data-k="${k}" data-i="more" placeholder="More">${esc(more)}</textarea></div>`;
   }).join('');
   document.querySelectorAll('.mrow').forEach(r => { if (r.querySelector('.morebox').value) r.classList.add('open'); });
 }
@@ -170,5 +150,6 @@ async function saveDocs(kind) {
 drawFiles(); drawFields();
 if (PREV.results) showResults(PREV.results);
 </script>
+<script src="{{ url_for('static', filename='ui.js') }}"></script>
 </body>
 </html>

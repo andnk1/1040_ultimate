@@ -50,8 +50,7 @@ function calc(b) {
 const has = b => Object.values(b.cy || {}).some(v => String(v).trim() !== '') || !!(b.pl && b.pl.rows && b.pl.rows.length);
 function totRow(b) {                       // "Enter total": only the bottom line (net profit / loss)
   const t = typed(b, 'tot');
-  return `<tr class="totonly"><td class="b">Total</td><td>Enter total only <span class="note">— net profit / (loss) when there's no line detail;
-    it replaces line 31. Not checked against the UT input screens (a note is added)</span></td><td></td>
+  return `<tr class="totonly"><td class="b">Total</td><td>Enter total only</td><td></td>
     <td class="n"><input class="amt scin ${t ? 'edited' : ''}" data-k="tot" value="${t ? fmt(num(b.cy['tot'])) : ''}" data-m=""></td></tr>`;
 }
 function finals(b) {                       // every Schedule C line as it stands (for the downloads)
@@ -65,8 +64,8 @@ function finals(b) {                       // every Schedule C line as it stands
 function scRow(b, k, o, m) {
   const py = b.py && b.py[k] !== undefined ? b.py[k] : null;
   let label = LBL[k];
-  if (k === '24b') label = 'Deductible meals <span class="note">— deductible part only (usually 1/2)</span>';
-  if (k === '30') label = 'Expenses for business use of your home <span class="note">— used only when the business has a profit</span>';
+  if (k === '24b') label = 'Deductible meals';
+  if (k === '30') label = 'Expenses for business use of your home';
   let cy;
   if (CALC.has(k)) cy = `<td class="n calc" id="c_${k}">${has(b) ? fmt(o[k]) : ''}</td>`;
   else {
@@ -107,6 +106,7 @@ function plTable(b) {
     <tr class="tot"><td>Net income per P&L</td><td class="n">${pl.net_income !== null && pl.net_income !== undefined ? fmt(pl.net_income) : '—'}</td><td>Accounts read ${fmt(pl.computed)}</td>
       <td class="n ${Math.abs(diff) > 0.01 ? 'flag' : ''}">${Math.abs(diff) > 0.01 ? 'diff ' + fmt(diff) : '✓ ties'}</td></tr></table>`;
 }
+let CALC_MSG = '';                          // the Calculate message (kept when the box is drawn again)
 function render() {
   if (CUR >= BIZ.length) CUR = BIZ.length - 1;
   const b = BIZ[CUR];
@@ -118,15 +118,15 @@ function render() {
   const err = b.pl && b.pl.error ? `<div class="error">${b.pl.error}</div>` : '';
   document.getElementById('schcBox').innerHTML = `
     <div class="bar" style="margin:0 0 10px">${nameBox}
-      <button type="button" class="alt small pickbtn" onclick="addPL()">Add P&amp;L…</button>
-      ${b.pl ? `<button type="button" class="light small" onclick="dropPL()">Remove P&amp;L</button>
+      <button type="button" class="pickbtn" onclick="addPL()">Add P&amp;L…</button>
+      ${b.pl ? `<button type="button" onclick="dropPL()">Remove P&amp;L</button>
         <span class="dl">Download: <a href="/schc/${TOKEN}/${CUR}/workpaper.csv" onclick="return dl(this)">workpaper</a> ·
         <a href="/schc/${TOKEN}/${CUR}/other_expenses.csv" onclick="return dl(this)">other expenses (Part V)</a> ·
         <a href="/schc/${TOKEN}/${CUR}/book_tax.csv" onclick="return dl(this)">books vs Schedule C</a></span>` : ''}
-      ${b.py ? `<button type="button" class="light small" onclick="usePY()">Use PY amounts</button>` : ''}
-      <button type="button" class="light small" onclick="clearBiz()">Clear typed amounts</button>
-      ${!b.py && BIZ.length > 1 ? `<button type="button" class="light small" onclick="delBiz()">Remove business</button>` : ''}
-      <span id="plMsg" class="note"></span></div>${err}
+      ${b.py ? `<button type="button" onclick="usePY()">Use PY amounts</button>` : ''}
+      <button type="button" onclick="clearBiz()">Clear Amounts</button>
+      <button type="button" onclick="calculateSchC()">Calculate</button>
+      <span id="calcMsg" class="note">${CALC_MSG}</span> <span id="plMsg" class="note"></span></div>${err}
     <div class="${b.pl ? 'plgrid' : ''}">${b.pl ? `<div class="plcol">${plTable(b)}</div>` : ''}<div class="sccol">${scTable(b)}</div></div>`;
 }
 function refresh() {                       // totals and soft (mapped) amounts, without redrawing the boxes
@@ -143,9 +143,13 @@ function refresh() {                       // totals and soft (mapped) amounts, 
 // ---------------------------------------------------------------- actions
 function pick(i) { CUR = i; render(); }
 function addBiz() { BIZ.push({name: '', py: null, cy: {}}); CUR = BIZ.length - 1; render(); save(); document.getElementById('schc').open = true; }
-function delBiz() { BIZ.splice(CUR, 1); CUR = Math.max(0, CUR - 1); render(); save(); }
 function usePY() { const b = BIZ[CUR]; Object.keys(b.py || {}).forEach(k => { if (!CALC.has(k)) b.cy[k] = b.py[k]; }); render(); save(); }
-function clearBiz() { BIZ[CUR].cy = {}; (BIZ[CUR].pl && BIZ[CUR].pl.rows || []).forEach(r => { r.typed = false; r.amount = defAmt(r); }); render(); save(); }
+function clearBiz() {                     // clears the amounts; a business left with nothing (no name, no P&L, not on last year's return) goes
+  const b = BIZ[CUR];
+  b.cy = {}; (b.pl && b.pl.rows || []).forEach(r => { r.typed = false; r.amount = defAmt(r); });
+  if (!b.py && !b.pl && !(b.name || '').trim() && BIZ.length > 1) { BIZ.splice(CUR, 1); CUR = Math.max(0, CUR - 1); }
+  render(); save();
+}
 function dropPL() { delete BIZ[CUR].pl; render(); save(); }
 async function addPL() {
   const msg = document.getElementById('plMsg'); msg.textContent = 'Choose the P&L (CSV, Excel or PDF)…';
@@ -170,7 +174,7 @@ function calculateSchC() {
     const nm = document.querySelector(`[data-schcname="${i}"]`); if (nm) nm.textContent = b.name || (b.pl && b.pl.company) || 'Business';
   });
   recalc(true);
-  document.getElementById('calcMsg').textContent = any ? 'Moved to the income summary ✓' : 'Nothing entered yet.';
+  CALC_MSG = any ? 'Moved to the income summary ✓' : 'Nothing entered yet.';
   render();
   if (BIZ.some((b, i) => b.calculated && !document.querySelector(`[data-schc="${i}"]`))) {
     clearTimeout(t); post().then(() => location.reload()); return;
@@ -184,7 +188,8 @@ const post = () => fetch(`/schc/${TOKEN}`, {method: 'POST', headers: {'Content-T
                                        total_only: typed(b, 'tot')})))});
 function save() {
   clearTimeout(t); t = setTimeout(post, 400);
-  const m = document.getElementById('calcMsg'); if (m && BIZ.some(b => b.calculated)) m.textContent = 'Changed — click Calculate to update the income summary.';
+  const m = document.getElementById('calcMsg');
+  if (BIZ.some(b => b.calculated)) { CALC_MSG = 'Changed — click Calculate to update the income summary.'; if (m) m.textContent = CALC_MSG; }
 }
 function saveNow() { clearTimeout(t); return post(); }
 

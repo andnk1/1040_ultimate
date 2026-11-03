@@ -292,7 +292,7 @@ def run_checks(cy: dict, inc: dict, ded: dict, docs: list, py: dict, sche: list 
         rv = rinc.get(s["key"])
         st = _status(s.get("cy"), rv, 1.01 * max(1, len(s["rows"])))
         if st:
-            out["cats"].append(dict(cat=s["label"], line="Sch 1 line 21" if s["key"] == "student_loan" else "",
+            out["cats"].append(dict(cat=s["label"], line={"student_loan": "Sch 1 line 21", "mortgage": "Sch A line 8a"}.get(s["key"], ""),
                                     docs=s.get("cy"), ret=rv, diff=None if s.get("cy") is None or rv is None else round(s["cy"] - rv, 2),
                                     status=st))
     # 2. per document: the amount (rounded) printed anywhere on the return
@@ -448,7 +448,7 @@ def review_xlsx(client: str, cy_file: str, checks: dict | None, checklist: list,
               [["✓" if x.get("done") else "", x["text"], "Y" if x.get("stays") else "N", x.get("note", "")] for x in checklist])
     cm = comments or {}
     if cm.get("client"):
-        ws.cell(r, 1, "Client comments").font = Font(name=F, size=11, bold=True, color="003366")
+        ws.cell(r, 1, "Return Comments").font = Font(name=F, size=11, bold=True, color="003366")
         x = ws.cell(r + 1, 1, cm["client"])
         x.alignment = Alignment(wrap_text=True, vertical="top")
         ws.merge_cells(start_row=r + 1, start_column=1, end_row=r + 1, end_column=4)
@@ -470,7 +470,7 @@ def review_xlsx(client: str, cy_file: str, checks: dict | None, checklist: list,
         ws = wb.create_sheet("UT input check")
         lbl = {"ok": "ok", "red": "data entry", "amber": "decision", "note": "note"}
         r = table(ws, 1, "1 · Document verification — every box on the documents vs the UT entry",
-                  ["✓", "Group", "Document", "Box / line", "Per document", "Per preparer", "Per UT", "UT screen", "Comment (summary)",
+                  ["✓", "Group", "Document", "Box / line", "Per document", "Corrected amount", "Per UT", "UT screen", "Comment (summary)",
                    "Review comment", "Status"],
                   [[tick("v|" + x["key"]), x["group"], x["doc"], x["box"], x["per_doc"], x["per_prep"], x["ut"],
                     (x["ut_ref"] + ("; " + x["ut_note"] if x.get("ut_note") else "")), x["note"], mk.get("n|v|" + x["key"], ""),
@@ -494,7 +494,7 @@ def review_xlsx(client: str, cy_file: str, checks: dict | None, checklist: list,
                 if mk.get("inctot|" + sct["key"]):
                     rows.append([title, sct["label"], "", sct.get("cy"), "total"])
         rows += [["Other", "", k.split("|", 1)[-1], None, k.split("|", 1)[0]] for k in mk
-                 if not k.startswith(("inc|", "inctot|", "v|", "n|")) and "|" in k]
+                 if not k.startswith(("inc|", "inctot|", "v|", "n|", "ut|")) and "|" in k and mk[k]]   # ut| = old UT summary ticks (removed)
         r = table(ws, 1, "Lines ticked as reviewed (✓) on screen 1", ["Summary", "Category", "Line", "Amount", "Kind"], rows)
         for col, w in zip("ABCDE", (14, 34, 60, 16, 12)):
             ws.column_dimensions[col].width = w
