@@ -50,25 +50,14 @@ def _disp(d) -> str:
 
 
 def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year, cy_year, edits: dict | None = None,
-                         added: list | None = None, cats=None, feeds=None, sche: list | None = None, k1v: list | None = None) -> dict:
+                         added: list | None = None, cats=None, feeds=None, sche: list | None = None, k1: dict | None = None) -> dict:
     """2024 (PY): category totals from the prior-year 1040, for comparison only.
-       2025 (CY): one row per document (per K-1 for K-1 packages) with the amount the program read."""
+       2025 (CY): one row per document with the amount the program read; K-1s = the K-1 section's package (k1: rows keyed
+       by EIN + line - the amount read is per document, a correction typed on the K-1 page the corrected amount)."""
     koinly_d = any(x.get("family") == "koinly" and "Schedule D" in x.get("doc_type", "") and x.get("route") != "skipped" for x in docs)
     CATS_, FEEDS_ = cats or CATS, feeds or FEEDS
     sections = []
     inv_files = {a.get("file") for a in (added or []) if a.get("inv") and a.get("file")}
-    # K-1s uploaded from the K-1 Verification page ("Upload to 1040"): their lines replace the same K-1s read from documents
-    k1v = [p for p in (k1v or []) if p.get("sections")]
-    from core.k1v.handoff import TO_CAT as _K1V_CAT, same_name
-    k1v_names = [r_["name"] for p in k1v for r_ in p.get("k1s", []) if r_.get("name")]
-    k1v_dup = set()                                        # uploaded K-1s that the document reader also found
-    for d in docs:
-        if d.get("route") != "skipped" and isinstance(d.get("parsed"), list):
-            for k in d["parsed"]:
-                hit = next((x for x in k1v_names if same_name(k.get("name"), x)), None)
-                if hit:
-                    k1v_dup.add(hit)
-    _is_k1v = lambda n: any(same_name(n, x) for x in k1v_names)
     for key, label, red in CATS_:
         rows = []
         for d in docs:
@@ -79,18 +68,10 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
                 continue                                    # Schedule D carries the totals; the 8949 is its detail
             parsed = d.get("parsed")
             excluded = d.get("route") == "excluded"
-            if isinstance(parsed, list):                   # K-1 package: one row per K-1
-                for k in parsed:
-                    if k1v_names and _is_k1v(k.get("name")):
-                        continue                            # same K-1 came in through the K-1 Verification page - counted once
-                    if key in k["amounts"] and k["amounts"][key]:
-                        rows.append(dict(doc="K-1 " + k["name"], file=d["file"], cy=k["amounts"][key],
-                                         note="; ".join(k["notes"][:3]) if key == "k1" else "", status=k["status"], excluded=False))
-                continue
             amts = (parsed or {}).get("amounts", {})
             st = (parsed or {}).get("status", "none")
             if excluded:
-                rows.append(dict(doc=_disp(d), file=d["file"], cy=None, note=d.get("note", ""), status="excluded", excluded=True))
+                rows.append(dict(doc=_disp(d), file=d["file"], did=d.get("did"), cy=None, note=d.get("note", ""), status="excluded", excluded=True))
                 continue
             if parsed is None or st == "none":
                 if d["file"] in inv_files:                   # amount entered on the document inventory instead
@@ -99,7 +80,7 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
                     if fam == "koinly" and (("Schedule 1" in d.get("doc_type", "")) != (key == "other")):
                         continue
                     why = "; ".join((parsed or {}).get("checks", [])) or "not read by the program yet"
-                    rows.append(dict(doc=_disp(d), file=d["file"], cy=None, note="NOT READ — " + why + " (AI review)",
+                    rows.append(dict(doc=_disp(d), file=d["file"], did=d.get("did"), cy=None, note="NOT READ — " + why + " (AI review)",
                                      status="none", excluded=False))
                 continue
             if key in amts and (amts[key] or fam == "1099r" or key == FEEDS_[fam][0] and not any(amts.values())):
@@ -130,24 +111,17 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
                     chk = "CHECK — " + "; ".join(parsed["checks"]) if parsed.get("checks") and key == _first_key(amts) else ""
                     for i, (lb, v) in enumerate(parts):    # one row per Form 8949 box / Schedule 1 line
                         n = "; ".join(x for x in [chk if i == 0 else "", pn.get(lb, "")] if x) if pn else (note if i == 0 else "")
-                        row = dict(doc=f'{_disp(d)} — {dict(st="ST ", lt="LT ").get(key, "")}{lb}', file=d["file"], cy=v,
+                        row = dict(doc=f'{_disp(d)} — {dict(st="ST ", lt="LT ").get(key, "")}{lb}', file=d["file"], did=d.get("did"), part=lb, cy=v,
                                    note=n, status=st, excluded=False)
                         if key != "other":
                             row["box"] = lb
                         rows.append(row)
                 else:
-                    rows.append(dict(doc=_disp(d), file=d["file"], cy=amts[key], note=note, status=st, excluded=False))
-        for p in k1v:                                          # K-1 Verification upload
-            for sk, ck in _K1V_CAT.items():
-                if ck != key:
-                    continue
-                for x in p["sections"].get(sk, []):
-                    dup = any(same_name(x["doc"][4:].split(" — ")[0], n) for n in k1v_dup)
-                    note = x.get("comment", "")
-                    if dup:
-                        note = (note + "; " if note else "") + "also read from the K-1 document — counted once (K-1 Verification)"
-                    rows.append(dict(doc=x["doc"], file="k1v:" + p["token"], cy=x["amt"], note=note,
-                                     status="read", excluded=False))
+                    rows.append(dict(doc=_disp(d), file=d["file"], did=d.get("did"), cy=amts[key], note=note, status=st, excluded=False))
+        for x in (k1 or {}).get("rows") or []:             # the K-1 section's package ("Add to Income Summary")
+            if x.get("cat") == key:
+                rows.append(dict(doc=x["doc"], file="k1v:" + (x.get("file") or ""), cy=x.get("amt"), k1corr=x.get("corr"),
+                                 note=x.get("comment") or "", status="read", excluded=False, id=x["key"]))
         if key == "schc":
             biz = [(i, b.get("name") or (b.get("pl") or {}).get("company") or f"Business {i + 1}") for i, b in enumerate(schc or [])
                    if b.get("py") or b.get("calculated")]
@@ -181,15 +155,24 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
                         r["memo"] = True
                         r["note"] = ("memo — check for duplicates, may be included on Schedule E; " + (r.get("note") or "")).rstrip("; ")
                 out = [dict(doc=n, file="", cy=(p.get("totals") or {}).get("net") if p.get("calculated") else None,
-                            note=(p.get("totals") or {}).get("note") or "From the Schedule E box (Calculate)", sche=i, schc=-1 - i,
+                            note=(p.get("totals") or {}).get("note") or "From the Schedule E box (Calculate)", sche=i,
                             status="read", excluded=False) for i, n, p in props]
                 rows = out + rows
         for r in rows:
-            r["id"] = f'{key}|{r["file"]}|{r["doc"]}'
-        for a in (added or []):                            # lines typed in by the preparer (+)
-            if a.get("sec") == key:
+            if r.get("id"):
+                continue                                    # K-1 lines: EIN + line
+            # a document's line = category + the document's fingerprint id (+ the 8949 box / Schedule 1 line when one document
+            # gives several rows) - a renamed file or a better issuer keeps its ticks / corrections; K-1 section, Schedule C / E rows: by name
+            r["id"] = f'{key}|{r["did"]}' + (f'|{r["part"]}' if r.get("part") else "") if r.get("did") else f'{key}|{r["file"]}|{r["doc"]}'
+        for a in (added or []):
+            if a.get("sec") != key:
+                continue
+            if a.get("inv"):                               # amount typed on the document inventory = per document (correctable here)
+                rows.append(dict(doc=a.get("doc", ""), file=a.get("file", ""), cy=a.get("cy"), note=a.get("note", ""),
+                                 status="inventory", excluded=False, inv=True, id=a["id"]))
+            else:                                          # lines typed in by the preparer (+): corrected amount only
                 rows.append(dict(doc=a.get("doc", ""), file=a.get("file", ""), cy=a.get("cy"), fit=a.get("fit"), note=a.get("note", ""),
-                                 status="added", excluded=False, added=True, inv=bool(a.get("inv")), id=a["id"]))
+                                 status="added", excluded=False, added=True, inv=False, id=a["id"]))
         reds = [(l, n, None) for l, n in red]
         sections.append(dict(key=key, label=label, rows=rows, red=reds, py=py_income.get(key), note=py_income.get(key + "_note", "")))
 
@@ -201,30 +184,41 @@ def build_income_summary(py_income: dict, docs: list, schc: list | None, py_year
             if r.get("added"):
                 continue
             r["fit"] = None
-            if r["file"] in fit_by_file and r["file"] not in done and not r["excluded"] and r.get("schc") is None:
+            if r["file"] in fit_by_file and r["file"] not in done and not r["excluded"] and r.get("schc") is None and not r.get("inv"):
                 r["fit"] = fit_by_file[r["file"]]
                 done.add(r["file"])
-    # per document = what the program read (fixed); corrected amount = per document unless typed over
+    # per document = every source, fixed: what the program read, the Schedule C / E box (Calculate), the K-1 section, the amount
+    # typed on the document inventory. Corrected amount = per document unless the preparer typed over it (that wins).
+    # A correction keeps the per-document amount it was typed over (edits[id]["base"] / ["base_fit"]); when per document changes
+    # later, the line is "stale" (document amount changed since your correction - re-confirm).
     for sec in sections:
         for r in sec["rows"]:
-            prog = not r.get("added") and r.get("schc") is None and r.get("status") not in ("none", "excluded")
+            prog = not r.get("added") and r.get("status") not in ("none", "excluded")
             r["doc_cy"] = r["cy"] if prog else None
             r["doc_fit"] = r.get("fit") if prog else None
+            if r.get("k1corr") is not None:                 # corrected on the K-1 page -> corrected amount
+                r["cy"] = r["k1corr"]
             e = (edits or {}).get(r["id"])
             if e:
                 r["read_cy"], r["read_fit"] = r["cy"], r.get("fit")
                 if "cy" in e:
                     r["cy"] = e["cy"]
                     r["edited"] = True
+                    if "base" in e and _moved(e["base"], r["doc_cy"]):
+                        r["stale"] = True
                 if "fit" in e:
                     r["fit"] = e["fit"]
                     r["edited"] = True
+                    if "base_fit" in e and _moved(e["base_fit"], r["doc_fit"]):
+                        r["stale"] = True
                 if "note" in e:                      # comment typed over / added to by the preparer
                     r["read_note"], r["note"], r["note_edited"] = r["note"], e["note"], True
-            r["differs"] = r.get("schc") is None and (abs((r["doc_cy"] or 0) - (r["cy"] or 0)) > 0.005
-                                                      or abs((r["doc_fit"] or 0) - (r.get("fit") or 0)) > 0.005)
+            r["differs"] = (abs((r["doc_cy"] or 0) - (r["cy"] or 0)) > 0.005
+                            or abs((r["doc_fit"] or 0) - (r.get("fit") or 0)) > 0.005)
         for r in sec["rows"]:
-            r["source"] = ("added by preparer" if r.get("added") else "entered by preparer" if r.get("edited") and r.get("status") == "none"
+            r["source"] = ("added by preparer" if r.get("added") else
+                           ("changed by preparer" if r.get("edited") else "document inventory") if r.get("inv") else
+                           "entered by preparer" if r.get("edited") and r.get("status") == "none"
                            else "changed by preparer" if r.get("edited") else "read by program")
         # red rows (add back disallowed losses ...): the amount typed in counts as typed (negative lowers the total)
         reds = []
@@ -288,6 +282,40 @@ def _match_business(path, biz):
     if not hits and len(biz) == 1:
         return biz[0][0]
     return None
+
+
+def _moved(base, now) -> bool:
+    """The per-document amount a correction was typed over is no longer the per-document amount."""
+    if base is None or now is None:
+        return (base is None) != (now is None)
+    return abs(base - now) > 0.005
+
+
+def per_doc(inc: dict, ded: dict | None = None) -> dict:
+    """{line id: (per document, per document withholding)} - what a correction is typed over."""
+    return {r["id"]: (r.get("doc_cy"), r.get("doc_fit")) for summ in (inc, ded or {"sections": []})
+            for s in summ["sections"] for r in s["rows"]}
+
+
+def stamp_edits(new: dict, old: dict, docs_now: dict) -> dict:
+    """Corrections from the page: each keeps the per-document amount it was typed over ("base" / "base_fit"). A correction that
+    didn't change keeps its base (so a later change of per document shows as stale); a new / changed one takes the current one."""
+    out = {}
+    for rid, e in (new or {}).items():
+        if not isinstance(e, dict):
+            continue
+        e = {k: v for k, v in e.items() if k not in ("base", "base_fit")}
+        prev = (old or {}).get(rid) or {}
+        dc, df = docs_now.get(rid, (None, None))
+        for k, b in (("cy", "base"), ("fit", "base_fit")):
+            if k not in e:
+                continue
+            if k in prev and prev[k] == e[k] and b in prev:
+                e[b] = prev[b]
+            elif rid in docs_now:
+                e[b] = dc if k == "cy" else df
+        out[rid] = e
+    return out
 
 
 def _first_key(amts: dict):

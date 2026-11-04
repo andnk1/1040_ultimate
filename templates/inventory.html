@@ -21,7 +21,7 @@
         <td><input class="txt iissuer" value="{{ d.issuer }}" placeholder="Issuer"></td>
         <td></td><td></td>
         {% else %}
-        <td title="{{ d.path }}">{{ d.file }}{% if d.password %} <span class="note">(password)</span>{% endif %}</td>
+        <td title="{{ d.path }}">{{ d.file }}{% if d.password %} <span class="note">(password)</span>{% endif %}{% if d.warn %}<div class="flag">{{ d.warn }}</div>{% endif %}</td>
         <td>{{ d.issuer }}</td>
         <td>{{ d.type }}{% if d.year_flag %} <span class="flag" title="Tax year on the document is not this year's">({{ d.year }})</span>{% endif %}</td>
         <td><span class="pill {{ RDL.get(d.read, RDL['none'])[0] }}">{{ RDL.get(d.read, RDL['none'])[1] }}</span></td>

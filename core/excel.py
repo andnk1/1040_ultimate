@@ -62,6 +62,8 @@ def income_xlsx(inc: dict, client: str = "", ded: dict | None = None, docs: list
             note = ("From the document inventory. " if d.get("inv") else "Added by the preparer. " if d.get("added") else "") + (d.get("note") or "")
             if fit_changed:
                 note = f"W/H changed from {(d.get('read_fit') or 0):,.2f}. " + note
+            if d.get("stale"):
+                note = "Document amount changed since your correction — re-confirm. " + note
             if d.get("note_edited"):
                 f = green if f is norm else f
             put(d["doc"], None, None if d.get("excluded") else d.get("doc_cy"), None if d.get("excluded") else d.get("cy"),

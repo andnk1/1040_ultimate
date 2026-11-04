@@ -14,10 +14,10 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-VERSION = 1
+VERSION = 2                     # 2 = work keyed by the documents' fingerprints (core/docid.py), with the id table "fps"
 PATTERN = "1040 Ultimate WIP*.json"
 # run keys that are the preparer's work
-KEYS = ["edits", "added", "schc", "sche", "ut", "marks", "to_ai", "invstate", "comments", "checklist", "carry_added", "formview"]
+KEYS = ["edits", "added", "schc", "sche", "ut", "marks", "to_ai", "invstate", "comments", "checklist", "carry_added", "formview", "docnotes", "k1"]
 
 
 def client_name(form: dict, docs: list | None = None) -> str:
@@ -80,11 +80,12 @@ def relink(paths: list, folder: str) -> tuple[list, list]:
 
 
 def snapshot(r: dict) -> dict:
+    from core.docid import fps, to_ai_out
     return dict(app="1040 Ultimate", version=VERSION, saved=datetime.now().strftime("%Y-%m-%d %H:%M"),
                 client=r.get("client") or client_name(r["form"], r.get("docs")), cy_year=r.get("cy_year"),
                 form=r["form"], docs=r.get("doc_list") or [{"path": p, "on": True} for p in r.get("docs") or []],
                 cy_path=r.get("cy_path") or "", ut_path=r.get("ut_path") or "",
-                **{k: r.get(k) for k in KEYS})
+                **dict({k: r.get(k) for k in KEYS}, to_ai=to_ai_out(r), fps=fps(r)))
 
 
 def save(r: dict) -> str | None:
@@ -108,6 +109,42 @@ def save(r: dict) -> str | None:
         r["wip_error"] = f"Couldn't save the work in progress: {e}"
         return None
     r["wip_error"], r["wip_saved"] = None, datetime.now().strftime("%H:%M")
+    return str(p)
+
+
+# ---------------------------------------------------------------- the K-1 section's own work (next to the WIP file)
+def k1_path(wip_path: str | None) -> Path | None:
+    """'1040 Ultimate K-1 WIP <year> - <client>.json' beside the WIP file (its name doesn't start with "1040 Ultimate WIP",
+    so find() never takes it for the client's work in progress)."""
+    if not wip_path:
+        return None
+    p = Path(wip_path)
+    return p.with_name(p.name.replace("1040 Ultimate WIP", "1040 Ultimate K-1 WIP", 1))
+
+
+def load_k1(wip_path: str | None) -> dict | None:
+    p = k1_path(wip_path)
+    if not p or not p.is_file():
+        return None
+    try:
+        j = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return j if isinstance(j, dict) else None
+
+
+def save_k1(wip_path: str | None, files: list, state) -> str | None:
+    """The K-1 PDFs of the client's K-1 run + the K-1 page's work (statement amounts, ticks, comments, corrections)."""
+    p = k1_path(wip_path)
+    if not p:
+        return None
+    tmp = p.with_suffix(".tmp")
+    try:
+        tmp.write_text(json.dumps(dict(app="1040 Ultimate K-1", version=1, saved=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                       files=list(files), state=state), indent=1, default=str), encoding="utf-8")
+        os.replace(tmp, p)
+    except OSError:
+        return None
     return str(p)
 
 

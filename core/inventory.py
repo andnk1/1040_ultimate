@@ -233,6 +233,12 @@ def _file_hash(p: Path) -> str:
     return h.hexdigest()
 
 
+def text_fp(text: str) -> str | None:
+    """Fingerprint of a document's text (its first pages): the same after an Acrobat re-save, different on a corrected form."""
+    t = re.sub(r"\s+", " ", text or "").strip()
+    return hashlib.sha1(t.encode("utf-8", "ignore")).hexdigest()[:16] if t else None
+
+
 def list_folder(folder: str | Path) -> list[str]:
     folder = Path(folder)
     return [str(p) for p in sorted(folder.rglob("*"), key=lambda p: str(p).lower())
@@ -261,8 +267,12 @@ def scan_files(paths: list, py_year: int | None = None, py_return: str | Path | 
             h = _file_hash(p)
         except OSError:
             h = None
+        # the document's id - saved work is keyed by it: its fingerprint, whatever its name or folder
+        d["fp"] = h
+        d["did"] = (h or hashlib.sha1(str(p).lower().encode()).hexdigest())[:16]
         if h and h in hashes:
-            d.update(doc_type="Duplicate", route="skipped", note=f"Same file as {hashes[h]}")
+            d.update(doc_type="Duplicate", route="skipped", note=f"Same file as {hashes[h]}",
+                     did=d["did"] + "~" + str(sum(1 for x in docs if x.get("fp") == h) + 1))
             docs.append(d)
             continue
         if h:
@@ -289,6 +299,7 @@ def scan_files(paths: list, py_year: int | None = None, py_return: str | Path | 
                 d["pages"], d["password"] = n, bool(pw)
                 texts = [page_text(doc, i) for i in range(min(n, CLASSIFY_PAGES))]
                 text = "\n".join(texts)
+                d["tfp"] = text_fp(text)
                 txt_pages = sum(has_text(t) for t in texts)
                 d["text"] = "yes" if txt_pages == len(texts) else ("partial" if txt_pages else "no")
                 producer = (doc.metadata or {}).get("producer") or ""

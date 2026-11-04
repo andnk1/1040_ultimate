@@ -1,7 +1,7 @@
 """formview.py - the form tabs of the Document inventory: W2 = every W-2 side by side, box by box, 6 per tab; 1098-M = every
 mortgage 1098 the same way (later: 1099 composite, 1099-R ... = new definitions).
 
-The parsed values are never changed. The preparer's corrections are kept apart in r["formview"][form][<doc path>#<form index>]
+The parsed values are never changed. The preparer's corrections are kept apart in r["formview"][form][<doc id>#<form index>]
 = {row key: value}; the effective value = the correction if there is one, else the parsed value. effective_docs() gives the
 document list with the corrections applied - everything downstream (income summary, Verify, AI report, Excel) uses it.
 Row keys: b1 ... b11 (boxes), ssn / ein / er / er_addr / ctl / ee / ee_addr (boxes a-f), b13stat / b13ret / b13sick, b12:<code>,
@@ -215,13 +215,13 @@ def effective_docs(r: dict) -> list:
         form = d.get("family")
         fv = (fvs.get(form) or {}) if form in FORMS else {}
         forms = forms_of(d, form) if fv else []
-        if not forms or not any(f'{d["path"]}#{i}' in fv for i in range(len(forms))):
+        if not forms or not any(f'{d["did"]}#{i}' in fv for i in range(len(forms))):
             out.append(d)
             continue
         rows, back, redo = FORMS[form]
         new = []
         for i, f in enumerate(forms):
-            e = fv.get(f'{d["path"]}#{i}')
+            e = fv.get(f'{d["did"]}#{i}')
             new.append(back(f, effective(rows(f), e)) if e else f)
         p = redo(d, new)
         p["formview_edited"] = True
@@ -246,12 +246,12 @@ def columns(r: dict, order: list, form: str = "w2") -> list:
     rows = FORMS[form][0]
     rank = {p: i for i, p in enumerate(order)}
     cols = []
-    for d in sorted(r["inv"]["docs"], key=lambda d: rank.get(d["path"], len(rank))):
+    for d in sorted(r["inv"]["docs"], key=lambda d: rank.get(d.get("did"), len(rank))):
         forms = forms_of(d, form)
         m = re.match(r"^\s*(\d+)", d["file"])
-        n = m.group(1) if m else str(rank.get(d["path"], len(rank)) + 1)
+        n = m.group(1) if m else str(rank.get(d.get("did"), len(rank)) + 1)
         for i, f in enumerate(forms):
-            cols.append(dict(id=f'{d["path"]}#{i}', form=form, path=d["path"], file=d["file"],
+            cols.append(dict(id=f'{d["did"]}#{i}', form=form, path=d["path"], file=d["file"],
                              num="#" + n + (chr(97 + i) if len(forms) > 1 else ""), parsed=rows(f)))
     return cols
 

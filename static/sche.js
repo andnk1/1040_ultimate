@@ -157,22 +157,13 @@
       + (rest.length ? ` · ${rest.length} from last year not in the sheet (kept at the end)` : '') + ' — click Calculate.';
   }
 
+  // each property's result -> per document on the income summary (a corrected amount typed there stays, flagged when the
+  // result changed since); the page is drawn again so both columns come from the program
   window.calculateSchE = function () {
-    let any = false, missing = false;
-    PROPS.forEach((p, j) => {
-      const on = has(p), o = calc(p);
-      p.calculated = on;
-      if (on) any = true;
-      const c = document.querySelector(`[data-sche="${j}"]`);
-      if (on && !c) missing = true;
-      if (c) c.querySelectorAll('input').forEach(el => { el.value = on ? fmt(o.net) : ''; el.dataset.read = on ? o.net.toFixed(2) : ''; el.dataset.v = el.dataset.read; el.dataset.shown = el.value; });
-      const nm = document.querySelector(`[data-schename="${j}"]`); if (nm) nm.textContent = p.name || 'Property ' + (j + 1);
-    });
-    recalc(true);
-    document.getElementById('calcMsgE').textContent = any ? 'Moved to the income summary ✓' : 'Nothing entered yet.';
+    PROPS.forEach(p => { p.calculated = has(p); });
     render();
-    if (missing) { saveNow().then(() => location.reload()); return; }
-    saveNow();
+    try { sessionStorage.setItem('scrollY', scrollY); } catch (e) {}
+    saveNow().then(() => location.reload());
   };
   render();
 })();

@@ -1115,29 +1115,6 @@ def parse_1099sa(path, pw=None) -> dict:
                 inv_note=note, memo_only=True)
 
 
-# ---------------------------------------------------------------- K-1 (1065) - via the K-1 Interpretation parser
-def parse_k1(path, pw=None) -> list[dict]:
-    from .k1v.k1_parser import parse_pdf
-    from .k1v.k1_summary import k1_section_rows
-    _, pw = _texts(path, pw, 1)
-    out = []
-    for k in parse_pdf(str(path), pw):
-        kd = k.to_dict()
-        if kd.get("form") != "1065":
-            continue
-        secs = k1_section_rows(kd)
-        mapc = {"int": "interest", "div": "dividends", "lt": "lt", "st": "st", "rent": "rental", "ord": "k1"}
-        a, notes = {}, []
-        for s, (amt, com) in secs.items():
-            k = mapc[s.split("_")[0]]                 # ord_E / ord_A / ord_1 -> K-1 ordinary; st_1256 / lt_1256 -> ST / LT
-            a[k] = a.get(k, 0) + amt
-            notes += com
-        out.append(dict(name=kd.get("name") or f"K-1 page {kd['page']}", page=kd["page"],
-                        status="partial" if kd.get("warnings") else "read", amounts=a, detail={},
-                        notes=notes + list(kd.get("warnings") or []), checks=list(kd.get("warnings") or [])))
-    return out
-
-
 # ---------------------------------------------------------------- dispatcher
 # ---------------------------------------------------------------- single IRS-template 1099s (MISC / NEC)
 # The payer's software prints the amounts inside the box, under the box label - read them by position.
@@ -1732,7 +1709,7 @@ def parse_box_list(path, pw=None) -> dict:
     return res
 
 
-def parse_document(d: dict) -> dict | list | None:
+def parse_document(d: dict) -> dict | None:
     fam = d.get("family")
     path = d.get("path")
     try:
@@ -1779,8 +1756,6 @@ def parse_document(d: dict) -> dict | list | None:
             return parse_1099sa(path)
         if fam == "ssa":
             return parse_ssa(path)
-        if fam == "k1p":
-            return parse_k1(path)
     except Exception as e:  # noqa: BLE001
         return dict(status="none", amounts={}, detail={}, notes=[], checks=[f"couldn't read: {type(e).__name__}: {e}"])
     return None

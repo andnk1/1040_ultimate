@@ -15,7 +15,10 @@ _work/
 *.jpg
 *.jpeg
 *.zip
+# automated tests (samples, answer keys, test code) - local only for now, backed up on Google Drive
+tests/
 1040 Ultimate WIP*.json
+1040 Ultimate K-1 WIP*.json
 1040 Ultimate WIP*.bak
 *.bak
 

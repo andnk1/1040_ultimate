@@ -63,7 +63,7 @@ Double-click **run.bat** (installs flask, pdfplumber, pymupdf, openpyxl the firs
 | 1099 composite / 1099-INT / DIV / B / MISC / OID — Schwab, Fidelity / National Financial, M1, Robinhood, Apex-style | INT 1+3, OID; DIV 1a (1b noted), 2a → LT; 1099-B Total short-/long-term gain (or the reported / not-reported rows); §1256 aggregate split 60/40; MISC 3 + 8 → Other income, MISC 2 → Rental & royalties | Interest, Dividends, LT, ST, Other, Rental |
 | Schedule D (Form 1040) on its own — a crypto report (Koinly or any other program), recognized from the form | read like a 1099-B: one row per Form 8949 box from lines 1a / 1b, 2, 3 (ST) and 8a / 8b, 9, 10 (LT) — proceeds, cost, adjustments, gain in the comment; lines 4–6, 11–14 and the totals 7 / 15 are left out (other documents carry them) | ST, LT |
 | Schedule 1 (Form 1040) on its own | only line 8v (digital assets received as ordinary income) and line 8z (other income, the type listed in the comment) — one row each | Other income |
-| K-1 (1065) | via the K-1 Interpretation parser: 5 interest, 6a dividends, 8 ST, 9a+10 LT, 2+3+7 rental, 1+GP+11 ordinary | per K-1 rows |
+| K-1 (1065) | in the K-1 section only (K-1 box → **Open K-1 Verification**, a new tab): 5 interest, 6a dividends, 8 ST, 9a+10 LT, 2+3+7 rental, 1+GP+11 ordinary. Nothing reaches the income summary until **Add to Income Summary** on the K-1 page (adding again replaces it; **Remove** in the K-1 box takes the lines off). The K-1 page's work is kept in `1040 Ultimate K-1 WIP … .json` next to the WIP file | per K-1 rows |
 | 1099-MISC (IRS layout, e.g. Coinbase) | amounts by position in the box: 1 rents + 2 royalties → Rental, 3 + 8 → Other, 4 withholding | Rental, Other |
 | 1099-NEC (IRS layout) | 1a / 1 → Schedule C (memo); 1b cash tips, 1d overtime, 3 golden parachute → Other with the box named; 4 withholding | Sch C, Other |
 | 1099-INT (any layout, e.g. bank substitute forms) | label and amount on the same row: 1 (+3) interest, 2 penalty, 4 withholding, 6 foreign tax, 8 tax-exempt, bond premium → notes | Interest |
@@ -91,7 +91,7 @@ Amount | Added to | Note | AI. Sorted by file name, numbers in number order (2 b
 The section starts closed (arrow), like every section with an arrow.
 - **Read** documents are listed only; their amounts are already on the income summary ("Added to" shows the lines they feed).
 - **Not read** documents take one amount + the income line it goes to (**Added to**). That makes a line on the income summary
-  (file name, amount in **corrected amount**, per document blank) and replaces the "NOT READ" row for that file.
+  (file name, the amount in **per document**; you can still type a corrected amount there) and replaces the "NOT READ" row for that file.
   More amounts from the same document: add them on the income summary with **+**.
 - The small **+** at the bottom of the inventory adds a free line (description, issuer, amount, line, note).
 - **Return Comments** (the box under the step tabs): general notes about the return — kept in the work in progress, shown on
@@ -118,9 +118,12 @@ Tabs under the Document inventory header, all the same size: **Summary** (the ta
 
 ## Income and Deduction Summary — Prior Year · per document · corrected amount
 One box (always open): the income table, then the deduction table. Every other section has an arrow and starts closed.
-- **Prior Year** = from last year's return (comparison). **per document** = what the program read (fixed). **corrected amount** = what goes on the return: starts as a copy,
-  yours to change (tax interpretation). Schedule C / E rows, not-read rows, added lines, add-backs and inventory amounts have
-  a corrected amount only.
+- **Prior Year** = from last year's return (comparison). **per document** = what came in (fixed): what the program read, the form
+  tabs, the Schedule C / E box (after Calculate), the K-1 section, the amount typed on the document inventory. **corrected amount**
+  = what goes on the return: starts as a copy, yours to change (tax interpretation) — it wins. Not-read rows, lines added with +
+  and add-backs have a corrected amount only.
+- When per document changes after you corrected a line (Schedule C recalculated, a form tab fix, a new inventory amount …), the
+  line says "document amount changed since your correction — re-confirm"; **Re-confirm** keeps your correction.
 - **Fed. w/h**: one column — the program's amount in grey (soft), type over it to change it (green). No withholding = blank.
 - White lines; category totals bold with a thicker line under them (no colour, no side bar), same in the Excel file. Numbers you type or change are blue (not bold). The number columns have equal widths.
 - Nothing is red: negative numbers are plain black everywhere (screens and Excel); the add-back / "minus losses carried over" rows are blue.
@@ -223,6 +226,10 @@ Everything on screen 1 is optional: prior-year return, client summary (PDF / Wor
   Or browse to it in the "Work in progress" field.
 - Holds your work, not the documents: amounts, comments, ticks, inventory, Schedule C / E, UT summary, checklist, carryover /
   Karbon ticks, the file paths (documents, 2025 return, UT screens). The documents are read again when you continue.
+- Work on a document (ticks, corrected amounts, comments, inventory, form-tab corrections) follows the file's fingerprint, not
+  its name: renaming or moving a file keeps it. A file re-saved (same text) keeps it with "matched by name — check"; a replaced
+  document (same name, other content) starts clean with "This document was replaced …" on its inventory line until it is ticked
+  Verified. Older WIP files are converted on load.
 - A different client's WIP with another prior-year return is refused. Files that moved are looked for (same name) under the
   WIP folder and listed on the summary.
 - Without a prior-year return the tax year comes from the documents (or the UT screens); the 2024 column, carryovers,

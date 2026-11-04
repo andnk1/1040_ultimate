@@ -46,7 +46,7 @@ table.v td.empty{width:20%}
 </head>
 <body>
 <div class="wrap">
-  <p class="back"><a href="/">&larr; 1040 Ultimate</a></p>
+  <p class="back">{% if owner %}<a href="/summary/{{ owner }}">&larr; 1040 Ultimate (this client)</a>{% else %}<a href="/">&larr; 1040 Ultimate</a>{% endif %}</p>
   <h1>K-1 Verification</h1>
   <p class="subtitle">For returns with many K-1s: read the K-1s once, then open the UltraTax entry guide and check what was typed in UltraTax against the K-1s. The original K-1 PDFs are read directly &mdash; statement pages stay available.</p>
 
@@ -62,6 +62,23 @@ table.v td.empty{width:20%}
   <div class="card">
     <div class="cardhead">1 &middot; Read</div>
     <div class="cardbody">
+      {% if owner %}{# opened from the 1040: the K-1 PDFs found among its documents (by path), more added the same way #}
+      <table class="v"><tr><th>K-1 PDFs</th></tr>
+        {% for p, n in run.files %}<tr><td title="{{ p }}">{{ n }}</td></tr>{% else %}<tr><td class="hint">No K-1 PDFs yet</td></tr>{% endfor %}
+      </table>
+      <button type="button" id="addK1">Add K-1 PDFs…</button> <span class="hint" id="addMsg"></span>
+      <script>
+      document.getElementById('addK1').addEventListener('click', async () => {
+        const m = document.getElementById('addMsg');
+        const j = await (await fetch('/browse?kind=files')).json();
+        if (j.busy) { m.textContent = 'A file window is already open.'; return; }
+        if (!j.paths || !j.paths.length) return;
+        m.textContent = 'Reading…';
+        await fetch('{{ k1v_base }}/files/{{ token }}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({paths: j.paths})});
+        location.reload();
+      });
+      </script>
+      {% else %}
       <form method="post" enctype="multipart/form-data" action="{{ k1v_base }}/">
         <div class="field"><label>K-1 PDFs &mdash; Form 1065 and/or 1120-S</label><input type="file" name="k1pdf" accept="application/pdf" multiple required>
           <p class="hint">Select one or more PDFs (a K-1 package, or the K-1 files themselves). Pages of the 2nd file are numbered 1001+, the 3rd 2001+.</p></div>
@@ -71,6 +88,7 @@ table.v td.empty{width:20%}
           <p class="hint">UltraTax: File &gt; Print &gt; Input screens (print to PDF). Optional &mdash; without it you get the entry guide and the Income Summary only.</p></div>
         <button type="submit">Read</button>
       </form>
+      {% endif %}
     </div>
   </div>
 

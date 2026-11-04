@@ -51,9 +51,10 @@ the pending list, the open questions and the known gaps that only lived in the c
   Robinhood composites, a mock 1098-T / 1095-A, a 31-page K-1 face-page file.
 
 ## K-1 section (2026-10-21)
-- One K-1 reader: `core/k1v` (k1_parser, k1_summary, screen parser, web blueprint `/k1v`). `core/k1_parser.py` and `core/k1_summary.py` are empty stubs (safe to delete).
-- K-1 PDFs added as documents go to that engine in `app.py` `_route_k1s` (route "k1v"); the summary page's K-1 box shows the K-1 Interpreter (tabs view `?tabs=1`);
-  amounts reach the income summary through `core/k1v/handoff.py` (owner = the 1040 run).
+- One K-1 reader: `core/k1v` (k1_parser, k1_summary, screen parser, web blueprint `/k1v`). (The empty stubs `core/k1_parser.py` /
+  `core/k1_summary.py` were deleted 2026-11-04.)
+- K-1 PDFs added as documents go to that engine in `app.py` `_route_k1s` (route "k1v"). Since 2026-11-04 the K-1 page opens in its
+  own tab and amounts reach the income summary only through "Add to Income Summary" — see "K-1s: one route".
 - Working from a cloud session: write each changed file to a NEW output path for every commit (re-using a path wrote the old content once); re-stage and compare checksums after committing.
 
 ## First page / summary changes (2026-10-26)
@@ -305,6 +306,104 @@ Learning plan (Lady's doc): https://claude.ai/artifact/UF1Bn9myJWtaZPaJq6XyYF �
 - AI pages = `templates/ai_page.html` + `app.AI_PAGES` (Lady's text: What it does / How to use it (coming later)); routes `/ai/<token>`
   (AI Doc Review, was the "AI review" placeholder), `/ai-return/<token>`, `/ai-advisory/<token>`. `templates/placeholder.html` deleted.
 
+## Automated tests (2026-11-03, built — pending item 8)
+- Folder `tests\` (local only: the whole folder is in `.gitignore`; back it up on Google Drive). One folder per fake client in
+  `tests\samples\<case>\`; the first case is `Sample` (the old `tests\Sample`, moved).
+- `tests\harness.py` runs a case through the 1040's own code (Flask test client → `/run`, no browser), with the WIP save turned off
+  and `_work` / the K-1 hand-off in a temporary folder (a test never touches a client's files or the running app).
+- `answer_key.xlsx` per case: sheets **Documents** (type, issuer, tax year, read status, forms read, then every box: W-2 / 1098 by
+  the form-tab row keys, K-1s by line from the K-1 section, other forms by the reader's own fields), **Summary** (income / deduction
+  lines, per document + Fed. w/h), **UT check** (result per Verify line: ok / different / not entered / entered on another line /
+  entered in pieces / one UT entry for several lines / 8949 box; then the UT entries with no document and their amount), **Files**
+  (the role of each file: Document / Prior-year return / UT input screens / Current-year return / Leave out — guessed the first
+  time, Lady can change it). Columns File · Form # · What · Expected · Checked. Blank box = `blank`, never 0.
+- `tests\make_key.bat` (`make_key.py`): a case with no key → a draft key from what the program reads now. A case with a key → rows only
+  for files that have none yet; a file taken out of the folder loses its rows unless one of them is checked. No row already in a key
+  is ever changed. To start a draft over: delete `answer_key.xlsx` (only if nothing is checked).
+- `tests\run_tests.bat` (pytest; installs pytest the first time): one test per case and sheet; a failure lists every row that differs
+  ([changed] / [not read now] / [new] / [no key]); at the end, how many rows of each key are checked. Claude Code runs it before
+  reporting a reader / summary / Verify change as done.
+- Not covered yet: the current-year return checks (Verify without the UT screens), Schedule C / E box amounts (the cases have no
+  P&L / Schedule E sheet), the Karbon / client summary contents. The UT print is matched by the most entries: the app's own
+  `looks_like_ut_screens` also says yes to one of the sample K-1s (left as it is, noted here).
+- Lines from the K-1 section are attributed to the K-1 file they came from. Since the one K-1 route (2026-11-04) the harness does
+  "Add to Income Summary" itself (no corrections), so the Summary / UT sheets kept their K-1 rows (the key didn't change).
+- `tests\fixtures\sample_wip_v1.json` = a frozen version-1 WIP of the Sample case (copied from its `.bak`) for `test_docid.py` —
+  the Sample folder's own WIP was saved again as version 2 on 2026-11-03 (by a real run with "Start fresh", it seems: no ticks).
+
+## Saved work keyed by the file's fingerprint (2026-11-03, built — pending item 7)
+- Every document gets an id when the documents are scanned: `d["did"]` = the first 16 characters of the SHA-1 of the file's bytes
+  (`inventory.scan_files`; a duplicate gets `~2`, one account of a split brokerage package `~<last 4>`). Also `d["tfp"]` = a
+  fingerprint of the text of the first pages (`inventory.text_fp`). Code and rules: `core/docid.py`.
+- Keys: income / deduction line = `<category>|<id>` (+ `|<8949 box / Schedule 1 line>` when one document gives several rows) — edits,
+  ticks `inc|…`, comments, Verify `v|<line>|main|fit|<box>`; inventory amounts `inv|<id>`; inventory verified / amounts / notes by
+  id; form tabs `<id>#<form index>`; Verify 1095-A / 1098-T / 1099-SA `memo|<id>|…`, return checks `rp|<line id>`, `rm|<id>|…`.
+  K-1 section lines and Schedule C / E rows are not documents (K-1 lines: pending item 5). The AI ticks stay by path while the
+  program runs and are saved by id. Form-tab ticks (`fv|<tab>|<row>`) are per tab, not per document — unchanged.
+- WIP file version 2: a table `fps` (id → file name + text fingerprint) and `docnotes`. On load (`docid.upgrade`, before the saved
+  work goes on the fresh read):
+  - **same document re-saved** (new bytes, same file name, same text): the work moves to the new id, the line says "matched by name —
+    check" and its Verified tick is taken off;
+  - **replaced document** (same file name, different text): the work is not carried over (it stays in the file, unseen), the line says
+    "This document was replaced — your previous ticks and comments were on the old version";
+  - the note shows on the inventory line (and a count in the top box) until the document is ticked Verified.
+  - The brief said "re-saved → match by name"; telling re-saved from replaced (both have a new fingerprint) needed the text check —
+    Claude's addition, said before building.
+- Older WIP files (version 1: keys from file names / paths) are converted once on load, matching by file name; a line whose issuer
+  changed is matched by category + file (+ the 8949 box / line at the end of its name).
+- The review Excel's "Reviewed (✓)" sheet shows file names instead of ids.
+- Tests: `tests\test_docid.py` (old WIP converted, renamed file, re-saved file, replaced file — on copies of Sample documents).
+
+## Per document = every source; stale correction flag (2026-11-03, built — pending items 1–3)
+- **Per document** = what came in, fixed: the program's read, the form tabs (W-2 / 1098 corrections), the Schedule C box (line 31
+  after Calculate), the Schedule E box (each property's result after Calculate), the K-1 section, and the amount typed on the
+  document inventory (a not-read document or an inventory + line). **Corrected amount** = per document unless the preparer types
+  over it — the correction wins (light pink when it differs). Lines added with + on the income summary stay corrected amount only.
+- `income.build_income_summary`: `prog` no longer excludes Schedule C rows; Schedule E rows have their own marker `sche=i` (the
+  `schc=-1-i` trick is gone — the template, Verify and the test harness check `sche` first). Inventory lines are no longer "added"
+  rows: `inv=True`, status "inventory", drawn like a document line (per document + a corrected amount box; the comment is still the
+  inventory note; no withholding box). Verify lists them as "inventory amount".
+- **Calculate** (Schedule C / E) saves the box and reloads the page (scroll kept), so both columns come from the program. Before,
+  Calculate wrote over the corrected amount; now a correction typed there stays.
+- **Stale correction flag:** every saved correction keeps the per-document amount it was typed over (`edits[id]["base"]`,
+  `["base_fit"]`, set by the server in `/edits` — `income.stamp_edits`). A correction that didn't change keeps its base; a new or
+  changed one takes the current per document. When per document changes later (form tab fix, Schedule C / E recalculated,
+  inventory amount changed, K-1 re-added, AI re-read later), the line says "document amount changed since your correction —
+  re-confirm" with a **Re-confirm** button (`/edits/<token>/confirm`: the base becomes the current per document). Also in the Income
+  Summary Excel note. Corrections saved before this change have no base — not flagged until they are typed again.
+- The change note on a corrected line says "changed from X (per document)" (was "as read by the program").
+- Tests: `tests\test_perdoc.py`.
+
+## K-1s: one route (2026-11-04, built — pending item 5; 1120-S joins later, item 6)
+- **Nothing reaches the income summary until "Add to Income Summary"** on the K-1 page. Gone: the automatic hand-off at Run check
+  (`make_run` no longer calls the hand-off), the `parsers.parse_k1` fallback (K-1 PDFs are read only by `core/k1v`), the
+  duplicate-by-name logic in `income.build_income_summary`, the in-memory / `_work/k1v_handoff.json` store and its claiming
+  (`handoff.payloads`, the `_k1v_ctx` context processor), the `/k1v/upload` and `/k1v/handoff/clear` routes, the empty stubs
+  `core/k1_parser.py` / `core/k1_summary.py`, the K-1 iframe on the main page.
+- **One K-1 run per 1040 run, owned from the start.** At Run check the K-1 PDFs among the documents (+ the ones added on the K-1 page
+  before, from the K-1 work file) are read into a K-1 run whose owner is the 1040 run. The K-1 box's **Open K-1 Verification** =
+  `/k1v/?for=<1040 run>` (new tab): that run's K-1 PDFs (by path) and **Add K-1 PDFs…** (the 1040's file window; all files read
+  again), then K-1 Interpreter / K-1 entry check. A client with no K-1 documents gets an empty run there (made on first open).
+  The UT input screens picked on Verify go to the K-1 entry check (as before).
+- **"Add to Income Summary"** (replaces "Upload to 1040", shown only on a run opened from the 1040): one package
+  (`core/k1v/handoff.build_package`) — per K-1 line: the amount read (with statement amounts) → **per document**, the correction on
+  the totals tab → **corrected amount**; adjustment lines typed on the K-1 page → corrected amount only. Adding again replaces the
+  package. Saved in the 1040 WIP (key `k1`). Income summary K-1 lines are keyed **`k1|<EIN>|<line>`** (no EIN → the name, else the
+  file's fingerprint + the page in the file — never the file name; line = the K-1 section's row id without its page, e.g. `int`,
+  `ord|E`, `lt1256`; the sample K-1s have no EIN / name read, so they use the fingerprint), so ticks, corrected amounts typed on the
+  1040 and comments stay when the client is opened again; the stale-correction flag covers a line whose amount changed when re-added.
+- **The K-1 page's own work is saved:** what the page kept only in the browser (statement amounts, 11 S / 11 ZZ ticks, Verified
+  ticks, comments, UT numbers, totals-tab corrections) is posted to `/k1v/state/<run>` and written by the 1040 to
+  **`1040 Ultimate K-1 WIP <year> - <client>.json`** next to the WIP file (`wip.save_k1` / `load_k1`; with the K-1 PDFs added on the
+  page). When the client is opened again the page starts from it (the server copy wins over the browser's).
+- **Main page K-1 box:** status — "K-1 documents found — not added yet" (also in the top box) / "12 K-1s added 14:05" / "changed since
+  added — add again" (the K-1s read or the page's work differ from what was added: `handoff.signature`) — Open K-1 Verification,
+  K-1 entry check (when read), Remove (takes the K-1 lines off the income summary; the K-1 page's work stays).
+- The separate `/k1v/` page (no `for`) stays a stand-alone reader (upload) with no Add.
+- 1120-S: `handoff.FORMS = ("1065",)` — the package, keys and rules are form-neutral; item 6 adds "1120-S" there plus its lines.
+- Tests: `tests\test_k1route.py`. The test harness does the Add itself (no corrections), so the answer key's Summary / UT sheets
+  still cover the K-1 lines.
+
 ## Pending list
 Cleared on 2026-10-21 (Lady): the old items 32-49 and the open questions were dropped. Start a new list from zero when needed.
 (Item 1, ADP W-2 every box: built 2026-11-01 — see "W-2 — every box".)
@@ -313,8 +412,9 @@ Items 1–7 of 2026-11-01 built — see "File names decide nothing" below.
 
 Items 1–3 of the second 2026-11-01 list built — see "Verified = light mint" above.
 
-**List of 2026-11-02 (not built):**
-1. **Per document = every source; corrected amount = the preparer's override (Lady).** Amounts from the form view, Schedule C box,
+**List of 2026-11-02 (items 1–3, 7, 8 built 2026-11-03; 5 built 2026-11-04; 4 (with the AI) and 6 not built):**
+1. **Per document = every source; corrected amount = the preparer's override (Lady). Built 2026-11-03 (items 1–3) — see "Per document
+   = every source" above.** Amounts from the form view, Schedule C box,
    Schedule E box, K-1s and (when built) confirmed AI reads all sit in **per document** as fixed values; the preparer can change any of
    them in **corrected amount**, which wins (light pink when it differs). Today: form view (W-2 / 1098) and K-1s already work this way;
    **Schedule C and Schedule E rows have a corrected amount only** (`income.build_income_summary`: `prog` is false when `schc` is set;
@@ -332,7 +432,8 @@ Items 1–3 of the second 2026-11-01 list built — see "Verified = light mint" 
    So the logs hold no client data: no client / employee names, file names, SSNs, EINs, account numbers or addresses — only date,
    form type, payer / issuer (never masked), box / line, AI value, corrected value, model, guidance file, and for the cost log the
    tokens and cost. `_work` stays as it is — deleted at every start.
-5. **K-1s: one route — open from the 1040, nothing counts until "Add to Income Summary" (Lady, 2026-11-02).** The K-1 code stays
+5. **K-1s: one route — open from the 1040, nothing counts until "Add to Income Summary" (Lady, 2026-11-02). Built 2026-11-04 — see
+   "K-1s: one route" above.** The K-1 code stays
    inside the 1040 program (`core/k1v`, opened in its own browser tab); it is always started from the 1040, even for a client with
    only K-1s. Today K-1 amounts reach the income summary three ways (auto hand-off when K-1 PDFs are among the documents —
    `k1v.web.make_run` calls `handoff.put` right away; "Upload to 1040" from the embedded K-1 page; "Upload to 1040" from the
@@ -357,9 +458,12 @@ Items 1–3 of the second 2026-11-01 list built — see "Verified = light mint" 
    - **The K-1 page's own work** (statement amounts, flags, corrections) saved too — a K-1 WIP file in the client folder next to the
      1040 WIP — so 100 K-1s don't have to be redone after a restart.
    - The separate `/k1v/` page (no 1040 run): may stay as a stand-alone reader with **no** Add / Upload to 1040.
-6. **Open: 1120-S K-1s don't reach the income summary** (`handoff.build_payload` and `parse_k1` keep 1065 only). They are read and
-   checked on the K-1 page. Decide whether 1120-S lines go to the income summary too (same package, same rules).
-7. **Saved work keyed by the file's fingerprint, not its name (Lady, 2026-11-02).** Today a line's key is built from the file name
+6. **1120-S K-1s: same path as 1065 (Lady, 2026-11-04) — build later, after item 5.** Today they are read and checked on the K-1
+   page but never reach the income summary (`handoff.build_payload` and `parse_k1` keep 1065 only). Decided: 1120-S K-1s go through
+   the same route as 1065s — the same "Add to Income Summary" package, per document / corrected amount rules, stale flag, EIN + line
+   keys. Item 5 is built for 1065 now, in a way that 1120-S can join later without a second route.
+7. **Saved work keyed by the file's fingerprint, not its name (Lady, 2026-11-02). Built 2026-11-03 — see "Saved work keyed by the
+   file's fingerprint" above.** Today a line's key is built from the file name
    and the description (issuer + file name), e.g. income summary `w2|<file>|<issuer — file>`, inventory / form view / marks by path or
    file name, Verify by file name. Renaming a file or teaching a reader a better issuer changes the key, and the saved ticks, corrected
    amounts and comments silently stop showing. New: key = **fingerprint** (`inventory._file_hash`, SHA-1 of the file's contents —
@@ -372,7 +476,7 @@ Items 1–3 of the second 2026-11-01 list built — see "Verified = light mint" 
      "This document was replaced — your previous ticks and comments were on the old version".
    - **Same document re-saved** (e.g. Acrobat Save changes the bytes): fall back to matching by file name, with "matched by name —
      check".
-8. **Automated tests — `C:\dev\1040_ultimate\tests` (Lady, 2026-11-02).** Today the only check is the manual regression run.
+8. **Automated tests — `C:\dev\1040_ultimate\tests` (Lady, 2026-11-02). Built 2026-11-03 — see "Automated tests" above.**
    - **Samples:** `tests\samples\<case>\` — one folder per fake client (copied from the Sample training app's Output; only fake
      names / SSNs / EINs / addresses): the documents, a prior-year return, the UT input screens print and (optional) the
      current-year return. One sample per layout a reader has special code for (W-2: ADP, IRS blank, ledger, detail sheet, list,

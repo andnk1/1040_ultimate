@@ -47,6 +47,7 @@ import core.wip as wip_mod                                                      
 from core.settings import START_FOLDERS                                            # noqa: E402
 from core.ai_report import build as build_report, write as write_report                                      # noqa: E402
 import core.formview as fv_mod                                                    # noqa: E402
+import core.docid as docid                                                        # noqa: E402
 
 PORT = int(os.environ.get("U1040_PORT", "5067"))
 WORK = HERE / "_work"            # masked copies while the program runs (deleted at start-up)
@@ -260,7 +261,8 @@ def run():
     _step(f"scanning {len(paths)} documents")
     inv = scan_files(paths, py_year=py.get("year"), py_return=form["pyret"] or None)
     _split_packages(inv)
-    k1v_token, k1v_problems = _route_k1s(inv, form["utscreens"])
+    k1w = wip_mod.load_k1(form["wip"]) if wip_data else None       # the K-1 section's own work (K-1 work file next to the WIP)
+    k1v_token, k1v_problems = _route_k1s(inv, form["utscreens"], k1w)
     ut = None
     if form["utscreens"]:
         _step("reading the UT input screens")
@@ -313,7 +315,7 @@ def run():
     r["token"] = token
     if k1v_token:
         r["k1v_token"] = k1v_token
-        k1v_web.set_owner(k1v_token, token)
+        k1v_web.set_owner(k1v_token, token)               # the K-1 run belongs to this 1040 run from the start
     if k1v_problems:
         r["stuck"] = list(r.get("stuck") or []) + [f"{m} — not read in the K-1 section" for m in k1v_problems]
     r["client"] = _client_label(form, paths)
@@ -321,6 +323,7 @@ def run():
     if form["utscreens"]:
         _load_ut(r, form["utscreens"])
     if wip_data:                                              # the saved work on top of the fresh read
+        wip_data = docid.upgrade(r, wip_data, _summaries)     # keys on this run's document ids (older files converted once)
         for k in wip_mod.KEYS:
             if wip_data.get(k) is not None:
                 r[k] = wip_data[k]
@@ -342,22 +345,29 @@ def run():
     return redirect(url_for("summary", token=token))
 
 
-def _route_k1s(inv, ut_path):
-    """K-1 PDFs added as documents go to the K-1 Verification engine (the same one as the K-1 Verification page); the K-1 section of
-    the summary shows its K-1 Interpreter. Returns (K-1 run token or None, [problems])."""
+def _route_k1s(inv, ut_path, k1w=None):
+    """K-1 PDFs among the documents (+ the ones added on the K-1 page, from the K-1 work file) go to the K-1 section's engine.
+    The 1040 reads no K-1 amounts itself: the K-1 lines reach the income summary only through "Add to Income Summary" on the
+    K-1 page. Returns (K-1 run token or None, [problems])."""
     if k1v_web is None:
         return None, []
     cands = [d for d in inv["docs"] if d["path"].lower().endswith(".pdf") and d.get("route") != "skipped" and d.get("family") != "pyreturn"
              and (d.get("family") in ("k1p", "k1s", "k1t", "k1x")
                   or re.search(r"(?<![A-Za-z0-9])K-?1(?![0-9])", d["file"], re.I))]      # a K-1 package can be classified as a return / statement
-    if not cands:
+    files = [(d["path"], d["file"]) for d in cands]
+    have = {os.path.normcase(p) for p, _ in files}
+    for p in (k1w or {}).get("files") or []:                 # K-1 PDFs added on the K-1 page (not among the documents)
+        if p and os.path.normcase(p) not in have and Path(p).is_file():
+            files.append((p, Path(p).name))
+            have.add(os.path.normcase(p))
+    if not files:
         return None, []
-    _step(f"K-1 section: reading {len(cands)} K-1 document(s): " + "; ".join(f"{d['file'][:30]} ({d.get('family')})" for d in cands))
+    _step(f"K-1 section: reading {len(files)} K-1 file(s): " + "; ".join(n[:30] for _, n in files))
     try:
-        token, problems, counts = k1v_web.make_run([(d["path"], d["file"]) for d in cands])
-    except Exception as e:  # noqa: BLE001 - the old reader is the fallback
-        _step(f"   K-1 section failed ({type(e).__name__}: {e}) - the document reader is used instead")
-        return None, []
+        token, problems, counts = k1v_web.make_run(files, state=(k1w or {}).get("state"))
+    except Exception as e:  # noqa: BLE001
+        _step(f"   K-1 section failed ({type(e).__name__}: {e})")
+        return None, [f"K-1 section: {type(e).__name__}: {e}"]
     for d in cands:
         forms = counts.get(d["file"]) or []
         if not forms:
@@ -365,7 +375,7 @@ def _route_k1s(inv, ut_path):
         n = len(forms)
         d.update(family="k1p" if "1065" in forms else "k1s", doc_type="K-1 (1065)" if "1065" in forms else "K-1 (1120-S)", route="k1v",
                  read="read", parsed=dict(status="read", amounts={}, notes=[], checks=[]), k1v_n=n,
-                 note=f"Read in the K-1 section below — {n} K-1{'s' if n != 1 else ''}.")
+                 note=f"Read in the K-1 section — {n} K-1{'s' if n != 1 else ''}.")
     return token, problems
 
 
@@ -382,7 +392,8 @@ def _split_packages(inv):
                 _step(f"   {d['file']}: {len(parts)} accounts — read separately")
                 for p in parts:
                     pg = p["pages"]
-                    out.append(dict(d, path=p["path"], orig_path=d["path"], account=p["account"],
+                    out.append(dict(d, path=p["path"], orig_path=d["path"], account=p["account"], did=f'{d["did"]}~{p["account"][-4:]}',
+                                    tfp=f'{d["tfp"]}~{p["account"][-4:]}' if d.get("tfp") else None,
                                     file=f"{Path(d['file']).stem} — acct …{p['account'][-4:]}{Path(d['file']).suffix}",
                                     note=(f"Account …{p['account'][-4:]} — pages {pg[0]}-{pg[-1]} of the package ({len(parts)} accounts). "
                                           + (d.get("note") or "")).strip()))
@@ -414,8 +425,9 @@ def _load_ut(r, path):
             r["ut_error"] = f"No income entries found in \"{Path(path).name}\" — is it the input screens print?"
     except Exception as e:  # noqa: BLE001
         r["ut_error"] = f"Couldn't read the input screens: {type(e).__name__}: {e}"
-    if r.get("k1v_token") and r.get("ut_scr") and k1v_web is not None:        # the K-1 entry check in the K-1 section
-        k1v_web.attach_screens(r["k1v_token"], path)
+    tok, _ = _k1run(r)
+    if tok and r.get("ut_scr"):                               # the K-1 entry check in the K-1 section
+        k1v_web.attach_screens(tok, path)
 
 
 def _looks_like_1040(path) -> bool:
@@ -448,12 +460,6 @@ def read_amounts(inv: dict) -> None:
         d["parsed"] = p
         if p is None:
             d.update(read="none", route="ai", note=(d["note"] + " No program reader for this form yet — AI review.").strip())
-        elif isinstance(p, list):
-            bad = [k["name"] for k in p if k["status"] != "read"]
-            d["read"] = "partial" if bad else ("read" if p else "none")
-            d["note"] = (d["note"] + f" {len(p)} K-1s read" + (f"; check: {', '.join(bad[:5])}" if bad else "")).strip()
-            if not p:
-                d["route"] = "ai"
         else:
             d["read"] = p["status"]
             if p.get("inv_note"):                               # 1095-A / 1098-T: a note only, not in the income summary
@@ -520,7 +526,7 @@ def summary(token):
     py_year = r["py"].get("year")
     inc, ded = _summaries(r)
     invrows = inventory_rows(r)
-    return render_template("summary.html", r=r, token=token, ROUTE_LBL=ROUTE_LBL, inc=inc, ded=ded, MAPL=PL_MAP_LINES,
+    return render_template("summary.html", r=r, token=token, ROUTE_LBL=ROUTE_LBL, inc=inc, ded=ded, MAPL=PL_MAP_LINES, k1=k1_status(r),
                            invrows=invrows, INV_SECS=INV_SECS, fv=form_view_data(r, inc, invrows, ded),
                            SCHC=list(SCHC_LINES.items()), schc_json=json.dumps(r["schc"]),
                            SCHE=list(SCHE_LINES.items()), sche_json=json.dumps(r.get("sche") or []))
@@ -528,9 +534,29 @@ def summary(token):
 
 @app.route("/edits/<token>", methods=["POST"])
 def save_edits(token):
-    """2025 amounts typed over on the income summary: {row id: {cy, fit}}."""
+    """Amounts typed over on the income / deduction summary: {row id: {cy, fit, note}}; each correction keeps the per-document
+    amount it was typed over (base) for the stale-correction flag."""
+    from core.income import stamp_edits, per_doc
     r = _run(token)
-    r["edits"] = request.get_json(force=True, silent=True) or {}
+    inc, ded = _summaries(r)
+    r["edits"] = stamp_edits(request.get_json(force=True, silent=True) or {}, r.get("edits"), per_doc(inc, ded))
+    return jsonify(ok=True)
+
+
+@app.route("/edits/<token>/confirm", methods=["POST"])
+def confirm_edit(token):
+    """Re-confirm a correction whose per-document amount changed: its base becomes the current per-document amount."""
+    from core.income import per_doc
+    r = _run(token)
+    rid = str((request.get_json(force=True, silent=True) or {}).get("id") or "")
+    e = (r.get("edits") or {}).get(rid)
+    if e:
+        inc, ded = _summaries(r)
+        dc, df = per_doc(inc, ded).get(rid, (None, None))
+        if "cy" in e:
+            e["base"] = dc
+        if "fit" in e:
+            e["base_fit"] = df
     return jsonify(ok=True)
 
 
@@ -589,7 +615,7 @@ def save_carry_added(token):
 
 
 # ---------------------------------------------------------------- work in progress (autosave)
-WIP_ROUTES = {"save_edits", "save_added", "save_carry_added", "save_ut", "save_toai", "save_marks", "save_comments", "save_schc", "save_sche",
+WIP_ROUTES = {"save_edits", "confirm_edit", "k1_remove", "save_added", "save_carry_added", "save_ut", "save_toai", "save_marks", "save_comments", "save_schc", "save_sche",
               "save_inventory", "verify_checklist", "verify_run", "save_invnote", "save_formview"}
 
 
@@ -651,19 +677,20 @@ def inventory_rows(r) -> list:
         note = d.get("note") or ""
         if d.get("ai_page_list") and r.get("to_ai", {}).get(d["path"]):
             note = (note + " · " if note else "") + "AI pages: " + d["ai_pages"]
-        a = st["amt"].get(d["path"]) or {}
+        a = st["amt"].get(d["did"]) or {}
         typ = d.get("doc_type") or ""
         amts = (d.get("parsed") or {}).get("amounts") if isinstance(d.get("parsed"), dict) else None
         if d["family"] == "composite" and amts:          # the forms that hold amounts (the text names every 1099 in its instructions)
             parts = [f for f, ks in (("INT", ("interest",)), ("DIV", ("dividends",)), ("B", ("st", "lt")), ("MISC", ("other", "rental")))
                      if any(amts.get(k) for k in ks)]
             typ += " (" + ", ".join(parts) + ")" if parts else ""
-        rows.append(dict(key=d["path"], file=d["file"], path=d["path"], issuer=d.get("issuer") or "", type=typ, year=d.get("year") or "",
+        rows.append(dict(key=d["did"], file=d["file"], path=d["path"], issuer=d.get("issuer") or "", type=typ, year=d.get("year") or "",
                          year_flag=d.get("year_flag"), read=d.get("read") or "none", is_read=read, password=d.get("password"),
                          feeds=("Karbon Summary" if d["family"] == "karbon" else
                                 "comments only" if isinstance(d.get("parsed"), dict) and d["parsed"].get("memo_only") else _feeds_label(d)) if read else "",
                          cy=a.get("cy"), sec=a.get("sec", ""),
-                         note=st["notes"].get(d["path"], note), verified=bool(st["verified"].get(d["path"])),
+                         note=st["notes"].get(d["did"], note), verified=bool(st["verified"].get(d["did"])),
+                         warn=(r.get("docnotes") or {}).get(d["did"], ""),
                          ai=bool(r.get("to_ai", {}).get(d["path"])), free=False))
     rows.sort(key=lambda x: _natural(x["file"]))                   # by file name: numbers in order (2 before 10), then A-Z
     for f in st["free"]:
@@ -701,14 +728,14 @@ def inventory_export(r) -> list:
 
 
 def inventory_added(r) -> list:
-    """Inventory amounts -> income summary lines (corrected amount only; per document stays blank)."""
+    """Inventory amounts -> income summary lines (corrected amount only; per document stays blank). Keyed by the document's id."""
     st = r.get("invstate") or {}
-    names = {d["path"]: d["file"] for d in r["inv"]["docs"]}
+    names = {d["did"]: d["file"] for d in r["inv"]["docs"]}
     out = []
-    for path, a in (st.get("amt") or {}).items():
-        if a.get("sec") and a.get("cy") is not None and path in names:
-            out.append(dict(id="inv|" + path, sec=a["sec"], doc=names[path], file=names[path], cy=a["cy"], fit=None,
-                            note=(st.get("notes") or {}).get(path, ""), inv=True))
+    for did, a in (st.get("amt") or {}).items():
+        if a.get("sec") and a.get("cy") is not None and did in names:
+            out.append(dict(id="inv|" + did, sec=a["sec"], doc=names[did], file=names[did], cy=a["cy"], fit=None,
+                            note=(st.get("notes") or {}).get(did, ""), inv=True))
     for f in st.get("free") or []:
         if f.get("sec") and f.get("cy") is not None:
             out.append(dict(id="inv|free|" + f["id"], sec=f["sec"], doc=f.get("name") or "Added line", cy=f["cy"], fit=None,
@@ -755,7 +782,7 @@ def form_view_data(r, inc, invrows, ded=None) -> dict:
 
 @app.route("/formview/<token>/<form>", methods=["POST"])
 def save_formview(token, form):
-    """Form view corrections: {"<doc path>#<form index>": {row key: value}} - the whole form's set (parsed values stay as read)."""
+    """Form view corrections: {"<doc id>#<form index>": {row key: value}} - the whole form's set (parsed values stay as read)."""
     r = _run(token)
     j = request.get_json(force=True, silent=True) or {}
     if not isinstance(r.get("formview"), dict):
@@ -766,7 +793,7 @@ def save_formview(token, form):
 
 @app.route("/inventory/<token>", methods=["POST"])
 def save_inventory(token):
-    """Inventory state: {verified: {key: bool}, amt: {path: {cy, sec}}, notes: {path: text}, free: [{id, name, issuer, cy, sec, note, verified}]}."""
+    """Inventory state (keyed by the document's id): {verified: {key: bool}, amt: {id: {cy, sec}}, notes: {id: text}, free: [{id, name, issuer, cy, sec, note, verified}]}."""
     r = _run(token)
     j = request.get_json(force=True, silent=True) or {}
 
@@ -781,6 +808,8 @@ def save_inventory(token):
         notes={k: str(v) for k, v in (j.get("notes") or {}).items()},
         free=[dict(id=str(f.get("id")), name=f.get("name", ""), issuer=f.get("issuer", ""), cy=num(f.get("cy")), sec=f.get("sec") or "",
                    note=f.get("note", ""), verified=bool(f.get("verified"))) for f in (j.get("free") or []) if isinstance(f, dict) and f.get("id")])
+    for k in r["invstate"]["verified"]:                     # ticked Verified: the replaced / matched-by-name note has been seen
+        (r.get("docnotes") or {}).pop(k, None)
     return jsonify(ok=True)
 
 
@@ -998,16 +1027,66 @@ def _summaries(r):
     added = list(r.get("added") or []) + inventory_added(r)
     docs = fv_mod.effective_docs(r)                     # W-2 corrections from the form view; typed income summary amounts still win
     inc = build_income_summary(r["py_inc"], docs, r["schc"], py_year, cy_year, r.get("edits"), added, sche=r.get("sche"),
-                               k1v=k1v_handoff.payloads(r.get("token")) if k1v_handoff else None)
+                               k1=r.get("k1"))
     ded = build_deduction_summary(r["py_inc"], docs, py_year, cy_year, r.get("edits"), added)
     return inc, ded
 
 
-@app.context_processor
-def _k1v_ctx():
-    tok = (request.view_args or {}).get("token")
-    return dict(k1v_info=k1v_handoff.info(tok) if k1v_handoff else dict(batches=0, k1s=0, files=[]),
-                k1v_check=bool(k1v_web and (k1v_web.RUNS.get((RUNS.get(tok) or {}).get("k1v_token")) or {}).get("result")))
+# ---------------------------------------------------------------- the K-1 section (core/k1v): one route
+def _k1run(r):
+    """The K-1 run of this 1040 run: (token, run) or (None, None). A run opened later from the K-1 box (/k1v/?for=) is found by
+    its owner."""
+    if k1v_web is None:
+        return None, None
+    tok = r.get("k1v_token")
+    if tok and tok in k1v_web.RUNS:
+        return tok, k1v_web.RUNS[tok]
+    tok, run = k1v_web.run_for(r.get("token"))
+    if tok:
+        r["k1v_token"] = tok
+    return tok, run
+
+
+def k1_status(r) -> dict:
+    """The main page's K-1 box: K-1 documents found / added (when, how many) / changed since added."""
+    tok, run = _k1run(r)
+    pkg = r.get("k1")
+    found = bool(run and run.get("k1s")) or any(d.get("route") == "k1v" for d in r["inv"]["docs"])
+    changed = bool(pkg and run and k1v_handoff and k1v_handoff.signature(run["k1s"], run.get("state")) != pkg.get("sig"))
+    added = (pkg or {}).get("added") or ""
+    when = added[11:] if added[:10] == datetime.now().strftime("%Y-%m-%d") else added
+    return dict(token=tok, found=found, pkg=pkg, changed=changed, when=when, check=bool(run and run.get("result")),
+                files=[n for _, n in (run or {}).get("files") or []])
+
+
+def _k1_added(owner, pkg) -> bool:
+    r = RUNS.get(owner)
+    if r is None:
+        return False
+    r["k1"] = pkg
+    wip_mod.save(r)
+    return True
+
+
+def _k1_state(owner) -> None:
+    r = RUNS.get(owner)
+    if r is None:
+        return
+    _, run = _k1run(r)
+    if run is not None:
+        wip_mod.save_k1(r.get("wip_path"), [p for p, _ in run.get("files") or []], run.get("state"))
+
+
+if k1v_web is not None:
+    k1v_web.HOOKS.update(added=_k1_added, state=_k1_state,
+                         ut_path=lambda owner: (RUNS.get(owner) or {}).get("ut_path") or "")
+
+
+@app.route("/k1/<token>/remove", methods=["POST"])
+def k1_remove(token):
+    """Remove the K-1 lines from the income summary (the K-1 section's work stays)."""
+    _run(token)["k1"] = None
+    return jsonify(ok=True)
 
 
 def _checklist(r):

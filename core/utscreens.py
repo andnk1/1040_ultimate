@@ -671,7 +671,7 @@ def doc_verify(inc: dict, docs: list, ut: dict, sche: list | None = None, schc: 
             lbl = names.get("main") or names.get(s["key"]) or CAT_LBL.get(s["key"], s["label"].replace("Total ", ""))
             if r.get("box"):
                 lbl += f' — Form 8949 box {r["box"]}'
-            if r.get("added"):
+            if r.get("added") or r.get("inv"):
                 lbl = "inventory amount" if r.get("inv") else "line added by preparer"
             grp = CAT_LBL.get(s["key"], s["label"].replace("Total ", ""))
             note = r.get("note") or ""
@@ -685,7 +685,7 @@ def doc_verify(inc: dict, docs: list, ut: dict, sche: list | None = None, schc: 
                     note="", note_edited=False, inv=False, added=bool(r.get("added")))
             # detail boxes - once per document
             p = d.get("parsed") if isinstance(d.get("parsed"), dict) else None
-            if not p or r.get("added") or r.get("status") in ("none", "excluded"):
+            if not p or r.get("added") or r.get("inv") or r.get("status") in ("none", "excluded"):
                 continue
             det = p.get("detail") or {}
             if s["key"] == "dividends" and r["file"] not in done_detail:
@@ -717,7 +717,7 @@ def doc_verify(inc: dict, docs: list, ut: dict, sche: list | None = None, schc: 
             box=f'Line {x["line"]} {x["label"]}', per_doc=None, per_prep=x["box"], ut=x["ut"],
             ut_ref=(f'C · {x["unit"]} · p. {x["page"]}' if x.get("page") else x["unit"]), fixed=x["status"])
     for x in ut_memo(ut, docs):
-        add(key=f'memo|{x["doc"]}|{x["what"]}', cat="memo", group=x["form"], doc=x["doc"], file=x["doc"], box=x["what"],
+        add(key=f'memo|{x.get("did") or x["doc"]}|{x["what"]}', cat="memo", group=x["form"], doc=x["doc"], file=x["doc"], box=x["what"],
             per_doc=x["amount"], per_prep=x["amount"], ut=x["ut"], ut_ref=x["ut_ref"],
             fixed="ok" if x["status"] == "ok" else "not entered")
 

@@ -6,10 +6,15 @@ Copied and adapted from C:\\dev\\K-1_interpretation\\verify1040.py (that folder 
   * no 8582 Reconciliation yet;
   * the home page has two tabs: K-1 1065 and K-1 1120-S.
 
-    /k1v/                   home: upload the K-1 PDFs (+ the UltraTax Input Screens PDF), then open:
-    /k1v/k1/<token>         K-1 Interpreter (UltraTax entry guide, statement amounts, totals, Income Summary)
+    /k1v/?for=<1040 run>    the K-1 run of that 1040 run (always opened from the 1040): its K-1 PDFs (found among the 1040's
+                            documents, + Add K-1 PDFs...), then open:
+    /k1v/k1/<token>         K-1 Interpreter (UltraTax entry guide, statement amounts, totals, Income Summary,
+                            Add to Income Summary)
     /k1v/verify/<token>     K-1 entry check: every K-1 item vs what was typed in UltraTax
-Nothing is stored: PDFs are read from temp files deleted right away; results live in memory while the program runs.
+    /k1v/                   stand-alone reader (upload the PDFs; no 1040 run, nothing goes to an income summary)
+A run opened from the 1040 has its owner (the 1040 run token) from the start. Nothing reaches the 1040 until "Add to Income
+Summary" (handoff.build_package -> HOOKS["added"]). The K-1 page's own work (statement amounts, ticks, comments, corrections)
+is posted here (/state) and saved by the 1040 in a K-1 work-in-progress file next to its own (HOOKS["state"]).
 """
 from __future__ import annotations
 
@@ -35,7 +40,9 @@ from .verify1040_excel import write_verification_xlsx
 
 BASE = "/k1v"
 bp = Blueprint("k1v", __name__, url_prefix=BASE)
-RUNS: dict = {}          # token -> {"k1s", "k1name", "scr", "scrname", "result", "manual", "flags", "n1065", "n1120"}
+RUNS: dict = {}          # token -> {"k1s", "k1name", "files", "owner", "state", "scr", "scrname", "result", "manual", "flags", "n1065", "n1120"}
+# set by the 1040 app: added(owner, package), state(owner) (save the K-1 work file), ut_path(owner) -> UT input screens or ""
+HOOKS: dict = {"added": None, "state": None, "ut_path": None}
 
 
 def _ctx(**kw):
@@ -90,23 +97,43 @@ def read_k1_files(files, pw: str = ""):
     return out, problems, counts
 
 
-def make_run(files, scr_path=None, scr_name=None):
-    """Used by the 1040 verification: the K-1 files added there go through the same engine as this page.
-    Returns (token or None, problems, counts). The K-1 lines are handed to the income summary right away."""
+def _fill(run, files):
+    """(Re-)reads the run's K-1 files: [(path, display name)]."""
     k1s, problems, counts = read_k1_files(files)
-    if not k1s:
-        return None, problems, counts
-    run = {"k1name": " + ".join(n for _, n in files), "result": None, "manual": {}, "flags": {}, "scr": None, "scrname": None,
-           "k1s": k1s, "problems": problems, "owner": None,
-           "n1065": sum(1 for k in k1s if k.get("form") == "1065"), "n1120": sum(1 for k in k1s if k.get("form") == "1120-S")}
+    run.update(files=list(files), k1s=k1s, problems=problems, k1name=" + ".join(n for _, n in files),
+               n1065=sum(1 for k in k1s if k.get("form") == "1065"), n1120=sum(1 for k in k1s if k.get("form") == "1120-S"))
+    return counts
+
+
+def make_run(files, scr_path=None, scr_name=None, owner=None, state=None):
+    """Used by the 1040: the K-1 files found among its documents go through the same engine as this page.
+    Returns (token, problems, counts) - a run is made even when nothing was read (more K-1s can be added on the page).
+    Nothing goes to the income summary here: that waits for "Add to Income Summary"."""
+    run = {"result": None, "manual": {}, "flags": {}, "scr": None, "scrname": None, "owner": owner, "state": state}
+    counts = _fill(run, files)
     token = uuid.uuid4().hex[:12]
     RUNS[token] = run
     if scr_path:
         attach_screens(token, scr_path, scr_name)
-    k65 = [k for k in k1s if k.get("form") == "1065"]
-    if k65:
-        handoff.put(handoff.build_payload(token, run["k1name"], k65, {}, build_summary(k65)))
-    return token, problems, counts
+    return token, run["problems"], counts
+
+
+def file_ids(run) -> list:
+    """The fingerprint of each K-1 file of the run (same rule as the 1040's documents: the first 16 characters of the SHA-1)."""
+    import hashlib
+    out = []
+    for p, _ in run.get("files") or []:
+        try:
+            h = hashlib.sha1(Path(p).read_bytes()).hexdigest()[:16]
+        except OSError:
+            h = ""
+        out.append(h)
+    return out
+
+
+def run_for(owner):
+    """The K-1 run of a 1040 run (token, run) - or (None, None)."""
+    return next(((t, x) for t, x in RUNS.items() if owner and x.get("owner") == owner), (None, None))
 
 
 def attach_screens(token, path, name=None) -> str:
@@ -129,7 +156,6 @@ def set_owner(token, owner) -> None:
     run = RUNS.get(token)
     if run:
         run["owner"] = owner
-        handoff.set_owner(token, owner)
 
 
 def _read_upload(f, reader, **kw):
@@ -204,7 +230,7 @@ def _report_ctx(run=None, error=None, filename=None, token=None):
     dicts = run["k1s"] if run else []
     return _ctx(k1s=dicts, rules=RULES, order=ORDER, summary=build_summary(dicts),
                 filename=filename or (run["k1name"] if run else None), error=error, static=False,
-                codes=CODES, token=token)
+                codes=CODES, token=token, owner=(run or {}).get("owner"), state=(run or {}).get("state"))
 
 
 def _run(token):
@@ -218,7 +244,15 @@ def _run(token):
 @bp.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "GET":
-        return render_template("k1v/home.html", **_ctx(run=None, token=None, error=None, tab=request.args.get("tab")))
+        owner = request.args.get("for")
+        if owner:                                             # opened from the 1040: its K-1 run (made now if it has none yet)
+            token, run = run_for(owner)
+            if not run:
+                ut = (HOOKS["ut_path"] or (lambda o: ""))(owner)
+                token, _, _ = make_run([], ut or None, owner=owner)
+                run = RUNS[token]
+            return render_template("k1v/home.html", **_ctx(run=run, token=token, error=None, tab=request.args.get("tab"), owner=owner))
+        return render_template("k1v/home.html", **_ctx(run=None, token=None, error=None, tab=request.args.get("tab"), owner=None))
     # the upload card on the K-1 Interpreter page posts a single "pdf" -> just the interpreter
     if "pdf" in request.files and "k1pdf" not in request.files:
         f = request.files["pdf"]
@@ -231,7 +265,7 @@ def home():
     fks = [f for f in request.files.getlist("k1pdf") if f and f.filename]
     fs = request.files.get("scrpdf")
     if not fks or not all(f.filename.lower().endswith(".pdf") for f in fks):
-        return render_template("k1v/home.html", **_ctx(run=None, token=None, error="Please choose the K-1 PDF(s)."))
+        return render_template("k1v/home.html", **_ctx(run=None, token=None, owner=None, error="Please choose the K-1 PDF(s)."))
     run = {"k1name": " + ".join(f.filename for f in fks), "result": None, "manual": {}, "flags": {}, "scr": None, "scrname": None}
     pw = (request.form.get("pdfpw") or "").strip()
     run["k1s"], problems = [], []
@@ -253,7 +287,7 @@ def home():
     run["problems"] = problems
     if not run["k1s"]:
         msg = "; ".join(problems) if problems else "No Schedule K-1 pages found in the K-1 PDF(s)."
-        return render_template("k1v/home.html", **_ctx(run=None, token=None, error=msg))
+        return render_template("k1v/home.html", **_ctx(run=None, token=None, owner=None, error=msg))
     run["n1065"] = sum(1 for k in run["k1s"] if k.get("form") == "1065")
     run["n1120"] = sum(1 for k in run["k1s"] if k.get("form") == "1120-S")
     if fs and fs.filename:
@@ -261,14 +295,14 @@ def home():
             run["scr"] = _read_upload(fs, parse_screens)
             run["scrname"] = fs.filename
         except Exception as e:  # noqa: BLE001
-            return render_template("k1v/home.html", **_ctx(run=None, token=None, error=f"Couldn't read the Input Screens PDF: {e}"))
+            return render_template("k1v/home.html", **_ctx(run=None, token=None, owner=None, error=f"Couldn't read the Input Screens PDF: {e}"))
         if not run["scr"]["units"]:
-            return render_template("k1v/home.html", **_ctx(run=None, token=None,
+            return render_template("k1v/home.html", **_ctx(run=None, token=None, owner=None,
                                    error="No K-1 input screens (K1, K1-2 …) found in the Input Screens PDF — print UltraTax File > Print > Input screens."))
         run["result"] = verify_screens(run["k1s"], run["scr"])
     token = uuid.uuid4().hex[:12]
     RUNS[token] = run
-    return render_template("k1v/home.html", **_ctx(run=run, token=token, error=None, tab=None))
+    return render_template("k1v/home.html", **_ctx(run=run, token=token, error=None, tab=None, owner=None))
 
 
 @bp.route("/k1/<token>")
@@ -305,26 +339,55 @@ def summary():
     return jsonify(build_summary(d.get("k1s") or []))
 
 
-@bp.route("/upload/<token>", methods=["POST"])
-def upload_to_1040(token):
-    """'Upload to 1040': the Income Summary lines (with the corrections typed on the K-1 page) go to the 1040 verification;
-    each K-1's name / EIN / amounts go on a back channel. Several uploads (batches of K-1s) add up."""
+@bp.route("/add/<token>", methods=["POST"])
+def add_to_income_summary(token):
+    """'Add to Income Summary': one package of the run's K-1 lines (amount read -> per document, the correction typed on the
+    totals tab -> corrected amount) to the 1040 run that owns this K-1 run. Adding again replaces the package."""
+    run = _run(token)
+    if not run.get("owner") or not HOOKS["added"]:
+        return jsonify(ok=False, error="Open the K-1 page from the 1040 (K-1 box, Open K-1 Verification) to add the K-1s."), 400
     d = request.get_json(force=True, silent=True) or {}
-    k1s = [k for k in (d.get("k1s") or []) if k.get("form") == "1065"]
+    if isinstance(d.get("state"), dict):
+        run["state"] = d["state"]
+    k1s = [k for k in (d.get("k1s") or []) if k.get("form") in handoff.FORMS]
     if not k1s:
-        return jsonify(ok=False, error="No 1065 K-1s to upload."), 400
-    payload = handoff.build_payload(token, d.get("filename") or "K-1s", k1s, d.get("corr") or {}, build_summary(k1s),
-                                    owner=(RUNS.get(token) or {}).get("owner"))
-    handoff.put(payload)
-    lines = sum(len(v) for v in payload["sections"].values())
-    return jsonify(ok=True, k1s=payload["n"], lines=lines, k1s_total=handoff.info(payload.get("owner") or None)["k1s"])
+        return jsonify(ok=False, error="No Form 1065 K-1s to add."), 400
+    pkg = handoff.build_package(k1s, (run.get("state") or {}).get("corr") or {}, build_summary(k1s), [n for _, n in run["files"]],
+                                handoff.signature(run["k1s"], run.get("state")), file_ids(run))
+    if not HOOKS["added"](run["owner"], pkg):
+        return jsonify(ok=False, error="The 1040 run is gone (the program was restarted) — open the client again."), 400
+    if HOOKS["state"]:
+        HOOKS["state"](run["owner"])
+    return jsonify(ok=True, k1s=pkg["n"], lines=len(pkg["rows"]), at=pkg["added"])
 
 
-@bp.route("/handoff/clear", methods=["POST"])
-def handoff_clear():
-    d = request.get_json(force=True, silent=True) or {}
-    handoff.clear(owner=d.get("owner") or None)
-    return jsonify(ok=True, **handoff.info(d.get("owner") or None))
+@bp.route("/state/<token>", methods=["POST"])
+def save_state(token):
+    """The K-1 page's own work (what it keeps in the browser: statement amounts, 11 S / 11 ZZ ticks, Verified ticks, comments,
+    UT numbers, corrections) - kept with the run and saved by the 1040 next to its work in progress."""
+    run = _run(token)
+    d = request.get_json(force=True, silent=True)
+    if isinstance(d, dict):
+        run["state"] = d
+        if run.get("owner") and HOOKS["state"]:
+            HOOKS["state"](run["owner"])
+    return jsonify(ok=True)
+
+
+@bp.route("/files/<token>", methods=["POST"])
+def add_files(token):
+    """Add K-1 PDFs (paths picked in the file window) to a run opened from the 1040: every file is read again."""
+    run = _run(token)
+    paths = [p for p in (request.get_json(force=True, silent=True) or {}).get("paths") or [] if p and Path(p).is_file()]
+    have = {os.path.normcase(p) for p, _ in run.get("files") or []}
+    new = [(p, Path(p).name) for p in paths if p.lower().endswith(".pdf") and os.path.normcase(p) not in have]
+    if new:
+        _fill(run, (run.get("files") or []) + new)
+        if run.get("scr"):
+            run["result"] = verify_screens(merge_manual(run["k1s"], run.get("manual"), run.get("flags")), run["scr"])
+        if run.get("owner") and HOOKS["state"]:
+            HOOKS["state"](run["owner"])
+    return jsonify(ok=True, added=len(new), problems=run["problems"])
 
 
 @bp.route("/verify/<token>/excel")
@@ -353,5 +416,4 @@ def excel():
 
 
 def register(app) -> None:
-    handoff.init(Path(app.root_path) / "_work")
     app.register_blueprint(bp)

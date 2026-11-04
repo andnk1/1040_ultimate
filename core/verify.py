@@ -168,13 +168,13 @@ def memo_items(docs: list) -> list:
             continue
         det = p.get("detail") or {}
         if d["family"] == "1095a" and det.get("aptc") is not None:
-            out.append(dict(kind="1095a", form="1095-A", doc=d["file"], what="Advance PTC (line 33C)", amount=det["aptc"]))
+            out.append(dict(kind="1095a", form="1095-A", doc=d["file"], did=d.get("did"), what="Advance PTC (line 33C)", amount=det["aptc"]))
         if d["family"] == "1099sa" and det.get("gross"):
-            out.append(dict(kind="1099sa", form="1099-SA", doc=d["file"], what="Box 1 gross distribution", amount=det["gross"]))
+            out.append(dict(kind="1099sa", form="1099-SA", doc=d["file"], did=d.get("did"), what="Box 1 gross distribution", amount=det["gross"]))
         if d["family"] == "1098t":
             for bx, what in (("box1", "Box 1 payments"), ("box5", "Box 5 scholarships")):
                 if det.get(bx):
-                    out.append(dict(kind="1098t", form="1098-T", doc=d["file"], what=what, amount=det[bx]))
+                    out.append(dict(kind="1098t", form="1098-T", doc=d["file"], did=d.get("did"), what=what, amount=det[bx]))
     return out
 
 
@@ -304,7 +304,7 @@ def run_checks(cy: dict, inc: dict, ded: dict, docs: list, py: dict, sche: list 
                 continue
             pats = {f"{round(v):,}", f"{abs(round(v)):,}", f"{v:,.2f}"}
             pages = [i + 1 for i, t in enumerate(allt) if any(re.search(r"(?<![\d,.])" + re.escape(p) + r"(?![\d,]|\.\d)", t) for p in pats)]
-            out["perdoc"].append(dict(cat=s["label"], doc=r["doc"] or "(added line)", amount=v, pages=pages[:8], found=bool(pages),
+            out["perdoc"].append(dict(id=r["id"], cat=s["label"], doc=r["doc"] or "(added line)", amount=v, pages=pages[:8], found=bool(pages),
                                       source=r.get("source", "read by program"), change=r.get("change_note", "")))
         for x in s.get("red", []):
             v = x.get("amount")
@@ -312,7 +312,7 @@ def run_checks(cy: dict, inc: dict, ded: dict, docs: list, py: dict, sche: list 
                 continue
             pats = {f"{round(v):,}", f"{abs(round(v)):,}", f"{v:,.2f}"}
             pages = [i + 1 for i, t in enumerate(allt) if any(re.search(r"(?<![\d,.])" + re.escape(p) + r"(?![\d,]|\.\d)", t) for p in pats)]
-            out["perdoc"].append(dict(cat=s["label"], doc=x["label"], amount=v, pages=pages[:8], found=bool(pages),
+            out["perdoc"].append(dict(id=x["id"], cat=s["label"], doc=x["label"], amount=v, pages=pages[:8], found=bool(pages),
                                       source="added by preparer", change=""))
     # 3. Schedule D by box
     mine = {}
@@ -324,7 +324,7 @@ def run_checks(cy: dict, inc: dict, ded: dict, docs: list, py: dict, sche: list 
                 continue
             line = _schd_line(r["doc"] or "", s["key"]) or ("5" if s["key"] == "st" and (r["doc"] or "").startswith("K-1") else
                                                             "12" if (r["doc"] or "").startswith("K-1") else None)
-            if line is None and r.get("added"):
+            if line is None and (r.get("added") or r.get("inv")):
                 line = "+" + s["key"]                    # your added line without a box: compared in the term total
             mine.setdefault(line or "?", []).append(r)
         for x in s.get("red", []):
@@ -493,7 +493,12 @@ def review_xlsx(client: str, cy_file: str, checks: dict | None, checklist: list,
                         rows.append([title, sct["label"].replace("Total ", ""), x["doc"], x.get("cy"), "line"])
                 if mk.get("inctot|" + sct["key"]):
                     rows.append([title, sct["label"], "", sct.get("cy"), "total"])
-        rows += [["Other", "", k.split("|", 1)[-1], None, k.split("|", 1)[0]] for k in mk
+        names = {d["key"]: d["file"] for d in docs or [] if d.get("key")}         # document ids in a key -> file names
+        def words(k):
+            for did, f in names.items():
+                k = k.replace(did, f)
+            return k
+        rows += [["Other", "", words(k.split("|", 1)[-1]), None, k.split("|", 1)[0]] for k in mk
                  if not k.startswith(("inc|", "inctot|", "v|", "n|", "ut|")) and "|" in k and mk[k]]   # ut| = old UT summary ticks (removed)
         r = table(ws, 1, "Lines ticked as reviewed (✓) on screen 1", ["Summary", "Category", "Line", "Amount", "Kind"], rows)
         for col, w in zip("ABCDE", (14, 34, 60, 16, 12)):

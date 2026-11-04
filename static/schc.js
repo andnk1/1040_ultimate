@@ -164,22 +164,16 @@ async function addPL() {
   render(); saveNow();
 }
 function dl(a) { saveNow(); setTimeout(() => { window.location = a.href; }, 350); return false; }
+// line 31 of each business -> per document on the income summary; a corrected amount typed there stays (and is flagged
+// when line 31 changed since). The page is drawn again so both columns come from the program.
 function calculateSchC() {
   let any = false;
-  BIZ.forEach((b, i) => {
-    const on = has(b), v = on ? calc(b)['31'] : null;
-    b.calculated = on;
-    if (on) any = true;
-    document.querySelectorAll(`[data-schc="${i}"] input`).forEach(el => { el.value = on ? fmt(v) : ''; el.dataset.read = on ? v.toFixed(2) : ''; el.dataset.v = el.dataset.read; el.dataset.shown = el.value; });
-    const nm = document.querySelector(`[data-schcname="${i}"]`); if (nm) nm.textContent = b.name || (b.pl && b.pl.company) || 'Business';
-  });
-  recalc(true);
+  BIZ.forEach(b => { b.calculated = has(b); if (b.calculated) any = true; });
   CALC_MSG = any ? 'Moved to the income summary ✓' : 'Nothing entered yet.';
   render();
-  if (BIZ.some((b, i) => b.calculated && !document.querySelector(`[data-schc="${i}"]`))) {
-    clearTimeout(t); post().then(() => location.reload()); return;
-  }
-  saveNow();
+  clearTimeout(t);
+  try { sessionStorage.setItem('scrollY', scrollY); } catch (e) {}
+  post().then(() => location.reload());
 }
 
 let t;

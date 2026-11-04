@@ -20,7 +20,9 @@
   {{ steps(token, 'summary') }}
 
   {# only what's wrong shows here: missing files, work in progress not being saved, moved / unread files #}
-  {% if inv.missing or r.wip_error or not r.wip_path or r.moved or r.stuck %}
+  {% set dn = r.docnotes or {} %}
+  {% set k1todo = k1.found and not k1.pkg %}
+  {% if inv.missing or r.wip_error or not r.wip_path or r.moved or r.stuck or dn or k1todo or k1.changed %}
   <div class="banner" id="probBox">
     {% if inv.missing %}<div><span class="flag">{{ inv.missing|length }} document{{ 's' if inv.missing|length != 1 }} not found</span></div>{% endif %}
     {% if r.wip_error %}<div><span class="flag">{{ r.wip_error }}</span></div>{% endif %}
@@ -28,6 +30,9 @@
       <button type="button" class="light small pickbtn noprint" onclick="wipFolder()">Choose a folder…</button></div>{% endif %}
     {% if r.moved %}<div><span class="flag">Moved files:</span> {{ r.moved|join('; ') }}</div>{% endif %}
     {% if r.stuck %}<div><span class="flag">Not read:</span> {{ r.stuck|join('; ') }}</div>{% endif %}
+    {% if k1todo %}<div><span class="flag">K-1 documents found — not added yet</span></div>{% endif %}
+    {% if k1.changed %}<div><span class="flag">K-1s changed since added — add again</span></div>{% endif %}
+    {% if dn %}<div><span class="flag">Documents changed since your work was saved:</span> {{ dn|length }} — see the Document inventory</div>{% endif %}
   </div>
   {% endif %}
   <textarea class="cmtbox topcmt" id="clientCmt" rows="2" placeholder="Return Comments">{{ r.comments.client or '' }}</textarea>
@@ -60,32 +65,24 @@
     </div>
   </details>
 
-  {# ------------------------------------------------ K-1s (K-1 Verification inside this page) #}
+  {# ------------------------------------------------ K-1s: the K-1 section opens in its own tab; nothing counts until "Add to Income Summary" there #}
   <details class="card" id="k1box">
-    <summary class="cardhead"><span><span class="arrow">▶</span>K-1s — read, check and enter the K-1s</span>
-      <span class="sub" id="k1boxSub">{% if k1v_info.k1s %}{{ k1v_info.k1s }} K-1{{ 's' if k1v_info.k1s != 1 }} on the income summary{% else %}no K-1s yet{% endif %}</span></summary>
+    <summary class="cardhead"><span><span class="arrow">▶</span>K-1s</span>
+      <span class="sub">{% if k1.pkg %}{{ k1.pkg.n }} K-1{{ 's' if k1.pkg.n != 1 }} added {{ k1.when }}{% if k1.changed %} · <span class="flag">changed since added — add again</span>{% endif %}
+        {%- elif k1.found %}<span class="flag">K-1 documents found — not added yet</span>{% else %}no K-1s{% endif %}</span></summary>
     <div class="cardbody">
-      {% if r.k1v_token %}
-      <p class="note">{% if k1v_check %}<a href="/k1v/verify/{{ r.k1v_token }}" target="_blank">K-1 entry check</a> · {% endif %}<a href="/k1v/k1/{{ r.k1v_token }}" target="_blank">Open in a new tab</a>
-        · <a href="/k1v/" target="_blank">Separate K-1 page</a></p>
-      {% else %}
-      <p class="note">No K-1 documents were added. <a href="/k1v/" target="_blank">Separate K-1 page</a></p>
-      {% endif %}
-      <div id="k1Banner" class="banner hidden noprint">New K-1 amounts uploaded.
-        <button type="button" class="light small" onclick="location.reload()">Refresh the income summary</button></div>
-      {% if k1v_info.k1s %}<p class="note noprint">On the income summary: {{ k1v_info.files|join('; ') }}</p>{% endif %}
-      <iframe id="k1frame" data-src="{{ ('/k1v/k1/' ~ r.k1v_token ~ '?tabs=1') if r.k1v_token else '/k1v/' }}" title="K-1 Verification" style="width:100%;height:900px;border:1px solid #d0d5dd;border-radius:6px;background:#fff"></iframe>
+      {% if k1.files %}<p class="note">{{ k1.files|join(' · ') }}</p>{% endif %}
+      <div class="btnrow noprint">
+        <a class="btn" href="/k1v/?for={{ token }}" target="_blank">Open K-1 Verification</a>
+        {% if k1.check %}<a class="btn" href="/k1v/verify/{{ k1.token }}" target="_blank">K-1 entry check</a>{% endif %}
+        {% if k1.pkg %}<button type="button" onclick="k1Remove()">Remove</button>{% endif %}
+      </div>
     </div>
   </details>
   <script>
-  (function () {
-    const box = document.getElementById('k1box'), fr = document.getElementById('k1frame');
-    const load = () => { if (box.open && !fr.getAttribute('src')) fr.setAttribute('src', fr.dataset.src); };
-    box.addEventListener('toggle', load); load();                                   // loads when opened
-    window.addEventListener('message', e => {
-      if (e.origin === location.origin && e.data && e.data.k1vUploaded) document.getElementById('k1Banner').classList.remove('hidden');
-    });
-  })();
+  function k1Remove() {
+    fetch('/k1/{{ token }}/remove', {method: 'POST'}).then(() => { try { sessionStorage.setItem('scrollY', scrollY); } catch (e) {} location.reload(); });
+  }
   </script>
 
   {# ------------------------------------------------ income summary (full width) #}
@@ -108,14 +105,17 @@
             <td class="note">{% if d.inv %}<input class="txt notein invnote" data-invid="{{ d.id }}" value="{{ d.note }}" placeholder="Comment (same as the inventory note)" title="From the document inventory — the amount is changed there; this comment is the inventory note">{% else %}<input class="txt notein" value="{{ d.note }}" placeholder="Comment">{% endif %}</td>
           </tr>
           {% else %}
-          <tr class="docrow {{ 'exrow' if d.excluded }}{{ ' memo' if d.memo }}{{ ' st-' ~ d.status }}" data-sec="{{ s.key }}" data-id="{{ d.id }}"
-              data-live="{{ 0 if (d.excluded or d.memo) else 1 }}">
+          <tr class="docrow {{ 'exrow' if d.excluded }}{{ ' memo' if d.memo }}{{ ' st-' ~ d.status }}{{ ' invrow' if d.inv }}" data-sec="{{ s.key }}" data-id="{{ d.id }}"
+              data-live="{{ 0 if (d.excluded or d.memo) else 1 }}"{% if d.inv %} data-inv="1"{% endif %}>
             <td><span class="rowck"><input type="checkbox" data-mk="inc|{{ d.id }}" title="Reviewed" {{ 'checked' if r.marks.get('inc|' ~ d.id) }}></span>{% if d.sche is defined %}<span data-schename="{{ d.sche }}">{{ d.doc }}</span>{% elif d.schc is defined %}<span data-schcname="{{ d.schc }}">{{ d.doc }}</span>{% else %}{{ d.doc }}{% endif %}</td>
             <td class="n"></td>
             <td class="n doccol">{{ money(d.doc_cy) }}</td>
             <td class="n"{% if d.sche is defined %} data-sche="{{ d.sche }}"{% elif d.schc is defined %} data-schc="{{ d.schc }}"{% endif %}>{% if d.excluded %}{% else %}{{ inp(d.cy, 'cy', d) }}{% endif %}</td>
-            <td class="n">{% if fitcol and not d.excluded and d.schc is not defined %}{{ inp(d.fit, 'fit', d) }}{% endif %}</td>
-            <td class="note"><textarea class="noteed{{ ' edited' if d.note_edited }}" rows="1" data-orig="{{ d.read_note if d.note_edited else d.note }}">{{ d.note }}</textarea></td>
+            <td class="n">{% if fitcol and not d.excluded and d.schc is not defined and d.sche is not defined and not d.inv %}{{ inp(d.fit, 'fit', d) }}{% endif %}</td>
+            <td class="note">{% if d.stale %}<div class="flag stale">document amount changed since your correction — re-confirm
+              <button type="button" class="light small noprint" onclick="reconfirm(this)">Re-confirm</button></div>{% endif %}
+              {%- if d.inv %}<input class="txt notein invnote" data-invid="{{ d.id }}" value="{{ d.note }}" placeholder="Comment" title="The inventory note">
+              {%- else %}<textarea class="noteed{{ ' edited' if d.note_edited }}" rows="1" data-orig="{{ d.read_note if d.note_edited else d.note }}">{{ d.note }}</textarea>{% endif %}</td>
           </tr>
           {% endif %}
           {% endfor %}
@@ -399,7 +399,7 @@ function chgNote(tr) {
     if ((typed === null) === (read === null) && (typed === null || Math.abs(typed - read) <= 0.005)) return;
     const f = v => v === null ? 'blank' : fmt(v);
     if (read === null && el.dataset.kind === 'cy' && tr.classList.contains('st-none')) parts.push('Amount entered by the preparer (not read by the program): ' + f(typed));
-    else parts.push((el.dataset.kind === 'cy' ? 'Amount' : 'Withholding') + ' was changed from ' + f(read) + ' (as read by the program) to ' + f(typed));
+    else parts.push((el.dataset.kind === 'cy' ? 'Amount' : 'Withholding') + ' was changed from ' + f(read) + ' (per document) to ' + f(typed));
   });
   if (!parts.length) { if (box) box.remove(); return; }
   if (!box) { box = document.createElement('div'); box.className = 'chg'; td.prepend(box); }
@@ -473,6 +473,12 @@ let incT;
 document.querySelectorAll('table.inc').forEach(t => t.addEventListener('input', () => {
   recalc(false); clearTimeout(incT); incT = setTimeout(() => { recalc(true); document.getElementById('recalcMsg').textContent = ''; }, 700);
 }));
+// a correction whose per-document amount changed since it was typed: keep it (its base becomes the current per document)
+function reconfirm(btn) {
+  const tr = btn.closest('tr');
+  fetch('/edits/{{ token }}/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: tr.dataset.id})})
+    .then(() => btn.closest('.stale').remove());
+}
 let addN = 0;
 function addLine(sec) {
   const tot = document.querySelector(`table.inc tr[data-tot="${sec}"]`);

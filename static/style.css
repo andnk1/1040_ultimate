@@ -181,6 +181,7 @@ table.v tr.badrow td{background:#FFF5F5}
 #clTable input.txt{width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid var(--grey);border-radius:5px;font-size:.84rem;font-family:inherit}
 
 table.inc .chg{color:#446B67;font-weight:700;font-size:.76rem;margin-bottom:2px}
+table.inc .stale{font-size:.76rem;margin-bottom:2px}
 .mine{color:#446B67}
 
 /* document inventory (top of screen 1) */

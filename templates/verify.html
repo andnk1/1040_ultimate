@@ -149,7 +149,7 @@
   {% if not ut %}<div class="card">
     <div class="cardhead">Each document on the return</div>
     <div class="cardbody"><table class="v">
-      {% for x in checks.perdoc %}{% set k = 'rp|' ~ x.doc %}<tr class="mk{{ ' done' if r.marks.get(k) }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.doc }}<div class="note">{{ money(x.amount) }}{% if x.source != 'read by program' %} · <b class="mine">{{ x.source }}</b>{% endif %}</div>
+      {% for x in checks.perdoc %}{% set k = 'rp|' ~ (x.id or x.doc) %}<tr class="mk{{ ' done' if r.marks.get(k) }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td>{{ x.doc }}<div class="note">{{ money(x.amount) }}{% if x.source != 'read by program' %} · <b class="mine">{{ x.source }}</b>{% endif %}</div>
         {% if x.change %}<div class="note mine">{{ x.change }}</div>{% endif %}</td>
         <td>{% if x.found %}<span class="pill yes">p. {{ x.pages|join(', ') }}</span>{% else %}<span class="pill new">Not found</span>{% endif %}</td></tr>{% endfor %}
     </table></div>
@@ -180,7 +180,7 @@
       <tr><th class="ck">✓</th><th>Form</th><th>Document</th><th>What</th><th class="n">Amount</th>{% if memo_ut %}<th class="n">Per UT</th><th>UT screen</th>{% endif %}{% if memo_ret %}<th>On the return</th>{% endif %}<th>Status</th></tr>
       {% for x in (memo_ut or memo_ret) %}{% set rx = memo_ret[loop.index0] if memo_ret and memo_ut else (x if memo_ret else none) %}
       {% set st = x.status %}
-      {% set k = 'rm|' ~ x.doc ~ '|' ~ x.what %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if st not in ['ok', 'found'] or (rx and rx.status != 'found') }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.form }}</td><td>{{ x.doc }}</td><td>{{ x.what }}</td><td class="n">{{ money(x.amount) }}</td>
+      {% set k = 'rm|' ~ (x.did or x.doc) ~ '|' ~ x.what %}<tr class="mk{{ ' done' if r.marks.get(k) }} {{ 'badrow' if st not in ['ok', 'found'] or (rx and rx.status != 'found') }}" data-mk="{{ k }}"><td class="ck">{{ tick(k) }}</td><td class="b">{{ x.form }}</td><td>{{ x.doc }}</td><td>{{ x.what }}</td><td class="n">{{ money(x.amount) }}</td>
         {% if memo_ut %}<td class="n">{{ money(x.ut) }}</td><td class="note">{{ x.ut_ref }}</td>{% endif %}
         {% if memo_ret %}<td class="note">{{ rx.where }} · {{ rx.note }}</td>{% endif %}
         <td>{{ pill('ok' if st in ['ok', 'found'] else ('missing' if st in ['no form', 'not entered', 'not found'] else 'check')) }}
