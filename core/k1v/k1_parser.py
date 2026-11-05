@@ -16,6 +16,8 @@ import pdfplumber
 
 # ---------------------------------------------------------------- patterns
 AMOUNT_RE = re.compile(r"^\(?-?\$?[\d,]*\d(\.\d*)?\)?\.?$")
+# identifying number (Part II item E): SSN 123-45-6789 / XXX-XX-2400 / ***-**-2400 / XXXXX2400, EIN 12-3456789 / XX-XXX1234
+TIN_RE = re.compile(r"^(?=(?:\D*\d){4})(?:[\dXx*•]{3}-?[\dXx*•]{2}-?[\dXx*•]{4}|[\dXx*•]{2}-[\dXx*•]{7})$")
 CODE_RE = re.compile(r"^([A-Z]{1,3})(\*)?$")
 
 # Part III box labels (lower-case phrase that starts the printed label)
@@ -126,6 +128,7 @@ class K1:
     H1: str | None = None
     I1: str = ""
     ein: str = ""
+    E: str = ""             # Part II item E: partner's / shareholder's identifying number, as printed (XXX-XX-2400, full SSN, EIN)
     address: list = field(default_factory=list)
     tax_begin: str = ""
     tax_end: str = ""
@@ -358,6 +361,22 @@ def parse_page(pg, page_no: int) -> K1 | None:
     # EIN (Part I, item A) — whatever is printed: full, last 4, or nothing
     ein_w = [w for w in region("A", "B", left_x) if re.search(r"\d", w["text"])]
     k.ein = " ".join(w["text"] for w in ein_w).strip()
+
+    # E — partner's (1065) / shareholder's (1120-S) identifying number, as printed; blank when none is printed.
+    # The row ends at the next row label below E (F on the 1065, F1 on the 1120-S). Every word in the row is looked at,
+    # not only the data font (some prints stamp the number in another font); TIN_RE never matches the label text.
+    if "E" in rows:
+        e_top = rows["E"]
+        e_end = next((t for _, t in row_order if t > e_top), e_top + 40)
+        e_words = [w for w in words if e_top - 4 <= w["top"] < e_end - 4 and w["x0"] < left_x and w["size"] <= 14]
+        for ln in _group_lines(e_words):
+            toks = [w["text"] for w in ln]
+            hit = next((t for t in toks if TIN_RE.match(t)), None)
+            if hit is None and TIN_RE.match("".join(toks)):     # printed with spaces: "XXX - XX - 2400"
+                hit = "".join(toks)
+            if hit:
+                k.E = hit
+                break
 
     # tax year beginning / ending (header, above Part I) -> mm/dd/yy; blank if not printed
     top_a = rows.get("A", 160)

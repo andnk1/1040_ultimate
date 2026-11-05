@@ -404,6 +404,14 @@ Learning plan (Lady's doc): https://claude.ai/artifact/UF1Bn9myJWtaZPaJq6XyYF �
 - Tests: `tests\test_k1route.py`. The test harness does the Add itself (no corrections), so the answer key's Summary / UT sheets
   still cover the K-1 lines.
 
+## K-1 reader: box E (2026-11-05, built)
+- `core/k1v/k1_parser.py`: new field `K1.E` = Part II item E (partner's / shareholder's identifying number) exactly as printed
+  (`XXX-XX-2400`, `***-**-2400`, `XXXXX2400`, a full SSN, an EIN `XX-XXX1234`); blank when none is printed. In `to_dict()`.
+  Read from the row between the E label and the next row label (F on the 1065, F1 on the 1120-S), any font (`TIN_RE`).
+- Asked for by the separate UT_Data_Entry app ("K-1 Prep"), which imports this parser read-only and matches each K-1 to the
+  taxpayer / spouse by box E. Nothing else in the parser's output changed; the K-1 pages don't show E (not asked yet).
+- Checked: all 19 sample K-1 files read E (1065 only). 1120-S uses the same code but is untested — no 1120-S sample yet.
+
 ## Pending list
 Cleared on 2026-10-21 (Lady): the old items 32-49 and the open questions were dropped. Start a new list from zero when needed.
 (Item 1, ADP W-2 every box: built 2026-11-01 — see "W-2 — every box".)
