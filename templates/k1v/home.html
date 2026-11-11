@@ -105,6 +105,7 @@ table.v td.empty{width:20%}
       <div class="btnrow">
         <a class="btn" href="{{ k1v_base }}/k1/{{ token }}" target="_blank">K-1 Interpreter</a>
         <a class="btn alt {% if not run.result %}off{% endif %}" href="{{ k1v_base }}/verify/{{ token }}" target="_blank">K-1 entry check</a>
+        {% if owner %}<a class="btn alt {% if not run.n1065 %}off{% endif %}" href="{{ k1v_base }}/prep/{{ token }}" target="_blank">K-1 Prep</a>{% endif %}
       </div>
     </div>
   </div>

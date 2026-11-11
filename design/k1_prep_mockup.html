@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-1 Data Entry — Prepare (mockup)</title>
+<style>
+/* cfoa-tools.css (shared base) — copied inline so the mockup opens on its own */
+:root{
+  --navy:#003366; --blue:#3C69AB; --teal:#4e7874; --green:#446B67; --mint:#7DD8C9; --mint-hover:#9BE3D7;
+  --ink:#374151; --line:#9AA3B2; --grey:#DFE1E9; --cardbg:#EFEFF7;
+  --ok:#E8F8F5; --secrow:#F7F7FB;
+  --changed-bg:#FDF0F0; --changed-text:#1F5FBF;
+  --warn:#8B0000; --warn-bg:#FDF0F0;
+  --info:#294F4C; --info-bg:#F1F5F4;
+  --orange:#B45309; --orangebg:#FEF3E2; --orangeline:#F5C58A;
+}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#fff;color:var(--ink)}
+.wrap{max-width:1760px;margin:0 auto;padding:20px 12px 50px}
+h1{color:var(--navy);font-size:2.2rem;font-weight:800;margin:0 0 16px}
+h1::after{content:"";display:block;width:280px;height:1px;background:var(--line);margin-top:14px}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tabs a{flex:0 0 210px;text-align:center;padding:9px 18px;border-radius:8px 8px 0 0;background:var(--grey);color:var(--ink);text-decoration:none;font-weight:600;font-size:.9rem}
+.tabs a.on{background:var(--navy);color:#fff}
+.tabs a.soon{opacity:.6}
+.banner{background:var(--info-bg);border-left:4px solid var(--info);color:var(--info);font-weight:600;padding:9px 14px;border-radius:6px;margin-bottom:14px;font-size:.88rem}
+.warning{background:var(--warn-bg);border-left:4px solid var(--warn);color:var(--warn);font-weight:600;padding:7px 12px;border-radius:6px;margin:0 0 8px;font-size:.86rem}
+.card{background:var(--cardbg);border:1px solid var(--line);border-radius:8px;margin-bottom:16px;overflow:hidden}
+.cardhead{background:var(--navy);color:#fff;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:9px 14px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.cardhead .pname{text-transform:none;letter-spacing:0;font-size:1rem}
+.cardhead .ein{font-weight:400;opacity:.85;margin-left:8px;font-size:.9rem}
+.cardhead .sub{text-transform:none;letter-spacing:0;font-weight:400;opacity:.9;display:flex;gap:18px}
+.cardbody{padding:8px 6px 10px}
+table.tk{width:100%;border-collapse:separate;border-spacing:0;font-size:.86rem}
+table.tk td,table.tk th{padding:5px 9px;border-bottom:1px solid var(--grey);background:#fff;vertical-align:middle}
+table.tk th{background:var(--secrow);color:var(--teal);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;text-align:left}
+table.tk .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.tk .gut{background:transparent!important;border:none!important;width:28px;padding:0 6px 0 0;text-align:center}
+table.tk .gut input{width:16px;height:16px;accent-color:var(--green);cursor:pointer;margin:0}
+table.tk tr>*:nth-child(2){border-left:1px solid var(--grey)}
+table.tk tr>*:last-child{border-right:1px solid var(--grey)}
+table.tk thead tr>*:not(.gut){border-top:1px solid var(--grey)}
+table.tk thead tr>*:nth-child(2){border-top-left-radius:8px}
+table.tk thead tr>*:last-child{border-top-right-radius:8px}
+table.tk tbody tr:last-child>*:nth-child(2){border-bottom-left-radius:8px}
+table.tk tbody tr:last-child>*:last-child{border-bottom-right-radius:8px}
+table.tk tr.sec>*:not(.gut){background:var(--secrow);font-weight:700;color:var(--teal);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+table.tk tr.vok>*:not(.gut){background:var(--ok)}
+input.amt{width:120px;text-align:right;padding:4px 8px;border:1px solid var(--grey);border-radius:5px;font:inherit;font-variant-numeric:tabular-nums;background:#fff;color:var(--ink)}
+input.amt.chg{background:var(--changed-bg);color:var(--changed-text)}
+button{display:inline-block;border:none;border-radius:8px;padding:10px 22px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+button.inbtn{background:var(--mint);color:var(--green);font-weight:700;min-width:190px}
+button.inbtn:hover{background:var(--mint-hover)}
+button.botbtn{background:var(--teal);color:#fff;min-width:200px}
+button.botbtn:hover{background:var(--green)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}
+
+/* page-specific */
+.box{font-weight:700;color:var(--navy);white-space:nowrap}
+.entry{font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.entry.bot{color:var(--teal)}
+.entry.hand{color:var(--orange)}
+tr.err .entry.hand{color:var(--warn)}
+/* by hand because Source Data Entry can't take it = orange note; a real problem = red warning */
+td.wcell{color:var(--orange);font-weight:600;font-size:.8rem}
+tr.hand td.wcell{background:var(--orangebg)!important;box-shadow:inset 4px 0 0 var(--orange)}
+tr.err td.wcell{color:var(--warn);background:var(--warn-bg)!important;box-shadow:inset 4px 0 0 var(--warn)}
+#handtbl td.wcell{background:var(--orangebg)}
+#handtbl td.wcell.e{color:var(--warn);background:var(--warn-bg)}
+.see{font-weight:600;color:var(--orange)}
+button.plus{background:var(--mint);color:var(--green);font-weight:800;padding:1px 10px;font-size:.95rem;border-radius:5px;margin-left:10px;min-width:0}
+button.plus:hover{background:var(--mint-hover)}
+button.rm{background:none;color:#9AA3B2;padding:0 6px;font-size:1rem;min-width:0}
+button.rm:hover{color:var(--warn)}
+select.code{padding:4px 6px;border:1px solid var(--orangeline);border-radius:5px;font:inherit;font-size:.84rem;max-width:100%;width:100%;background:var(--orangebg);color:var(--ink)}
+input.user{background:var(--orangebg);border-color:var(--orangeline);color:var(--ink)}
+input.ubox{width:60px;padding:4px 8px;border-radius:5px;border:1px solid var(--orangeline);font:inherit;background:var(--orangebg);color:var(--ink)}
+input.ucode{width:60px;padding:4px 8px;border-radius:5px;border:1px solid var(--orangeline);font:inherit;text-transform:uppercase;background:var(--orangebg);color:var(--ink)}
+tr.addrow td{background:#fff}
+button.addline{background:var(--mint);color:var(--green);font-weight:700;padding:3px 14px;font-size:.84rem;border-radius:5px;min-width:0}
+button.addline:hover{background:var(--mint-hover)}
+.ssn.bad{background:var(--warn-bg);color:var(--warn);border-radius:4px;padding:1px 8px;font-weight:700}
+.status{font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+.status.ready{color:var(--teal)}
+.status.todo{color:var(--orange)}
+.status.no{color:var(--warn)}
+.people{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;padding:6px 8px}
+.people label{display:block;font-size:.72rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.people input{padding:6px 10px;border:1px solid var(--grey);border-radius:5px;font:inherit;width:150px}
+.mock{position:fixed;top:8px;right:10px;background:var(--orangebg);color:var(--orange);font-weight:700;font-size:.75rem;padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+col.gutc{width:28px} col.c-box{width:60px} col.c-code{width:70px} col.c-amt{width:150px} col.c-corr{width:170px} col.c-entry{width:90px} col.c-warn{width:300px}
+</style>
+</head>
+<body>
+<div class="mock">Mockup — dummy data</div>
+<div class="wrap">
+  <h1>K-1 Data Entry</h1>
+  <div class="tabs"><a class="on" href="#">1 · Prepare</a><a class="soon" href="#">2 · Enter</a></div>
+  <div class="banner" id="banner"></div>
+
+  <div class="card">
+    <div class="cardhead">Client<span class="sub">Test client</span></div>
+    <div class="cardbody"><div class="people">
+      <div><label>Taxpayer SSN</label><input value="000-00-2400"></div>
+      <div><label>Spouse SSN</label><input placeholder="none"></div>
+      <div><button class="inbtn" type="button">Add K-1 PDFs</button></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">K-1s<span class="sub" id="k1count"></span></div>
+    <div class="cardbody">
+      <table class="tk" id="sumtbl">
+        <thead><tr><th class="gut"></th><th>#</th><th>Partnership</th><th>EIN</th><th>Box E</th><th>Partner</th>
+          <th class="n">Bot lines</th><th class="n">By hand</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="k1cards"></div>
+
+  <div class="card">
+    <div class="cardhead">To enter by hand in UltraTax<span class="sub" id="handcount"></span></div>
+    <div class="cardbody">
+      <table class="tk" id="handtbl">
+        <thead><tr><th class="gut"></th><th>K-1</th><th>Box</th><th>Code</th><th class="n">Amount</th><th>Why</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button class="botbtn" type="button">Save</button>
+    <button class="botbtn" type="button">Create entry file</button>
+    <button class="botbtn" type="button">Download by-hand list</button>
+  </div>
+</div>
+
+<script>
+// Codes per box with their descriptions (UltraTax dropdowns / IRS 2025). Box 15 descriptions partly filled in this mockup.
+const CODES = {"11": [["A", "Other portfolio income (loss)"], ["B", "Involuntary conversions"], ["C", "Section 1256 contracts and straddles"], ["D", "Mining exploration costs recapture"], ["E", "Cancellation of debt"], ["F", "Section 743(b) positive income adjustments"], ["I", "Gain from disposition of oil, gas, geothermal property"], ["J", "Recoveries of tax benefit items"], ["K", "Gambling gains and losses"], ["L", "Distribution under section 751(b)"], ["M", "Gain eligible for section 1045 rollover (replacement purchased)"], ["N", "Gain eligible for section 1045 rollover (replacement not purchased)"], ["O", "Sale or exchange of QSB stock with section 1202 exclusion"], ["P", "Farm recapture property and section 1252 items"], ["Q", "Fannie Mae/Freddie Mac qualified preferred stock gain/loss"], ["R", "Specially allocated ordinary gain (loss)"], ["S", "Non-portfolio capital gain (loss)"], ["ZZ", "Other"]], "13": [["A", "Cash contributions (60%)"], ["B", "Cash contributions (30%)"], ["C", "Noncash contributions (50%)"], ["D", "Noncash contributions (30%)"], ["E", "Capital gain property to 50% organization (30%)"], ["F", "Capital gain property (20%)"], ["G", "Contributions (100%)"], ["H", "Investment interest expense"], ["I", "Deductions—royalty income"], ["J", "Section 59(e)(2) expenditures"], ["K", "Excess business interest expense"], ["L", "Deductions—portfolio income (other)"], ["M", "Amounts paid for medical insurance"], ["N", "Educational assistance benefits"], ["O", "Dependent care benefits"], ["P", "Preproductive period expenses"], ["Q", "(not a 2025 IRS code)"], ["R", "Pensions and IRAs"], ["S", "Reforestation expense deduction"], ["T", "(not a 2025 IRS code)"], ["V", "Section 743(b) negative income adjustments"], ["W", "Soil and water conservation"], ["X", "Qualified film, television, theatrical, sound recording production"], ["Y", "Expenditures for removal of barriers"], ["Z", "Itemized deductions"], ["AA", "Contributions to capital construction fund"], ["AB", "Penalty on early withdrawal of savings"], ["AC", "Interest expense allocated to debt-financed distributions"], ["AD", "Interest expense on working interest in oil or gas"], ["AE", "Deductions—portfolio income"], ["ZZ", "Other"]], "20": [["A", "Investment income"], ["B", "Investment expenses"], ["C", "Fuel tax credit information"], ["D", "Qualified rehabilitation expenditures (other than rental real estate)"], ["E", "Basis of energy property"], ["F", "Recapture of low-income housing credit (section 42(j)(5))"], ["G", "Recapture of low-income housing credit (other)"], ["H", "Recapture of investment credit"], ["I", "Recapture of other credits"], ["J", "Look-back interest—completed long-term contracts"], ["K", "Look-back interest—income forecast method"], ["L", "Dispositions of property with section 179 deductions"], ["M", "Recapture of section 179 deduction"], ["N", "Business interest expense"], ["O", "Section 453(l)(3) information"], ["P", "Section 453A(c) information"], ["Q", "Section 1260(b) information"], ["R", "Interest allocable to production expenditures"], ["S", "Capital construction fund nonqualified withdrawals"], ["T", "Depletion information—oil and gas"], ["U", "Section 743(b) basis adjustment"], ["V", "Unrelated business taxable income"], ["W", "Precontribution gain (loss)"], ["X", "Payment obligations including guarantees and deficit obligations"], ["Y", "Net investment income"], ["Z", "Section 199A information"], ["AA", "Section 704(c) information"], ["AB", "Section 751 gain (loss)"], ["AC", "Section 1(h)(5) collectibles gain"], ["AD", "Section 1(h)(6) unrecaptured section 1250 gain"], ["AE", "Excess taxable income"], ["AF", "Excess business interest income"], ["AG", "Gross receipts for section 448(c)"], ["AH", "Noncash charitable contributions"], ["AI", "Interest and tax on deferred compensation to partners"], ["AJ", "Excess business loss limitation"], ["AK", "Gain from mark-to-market election"], ["AL", "Section 721(c) partnership"], ["AM", "Section 1061 information"], ["AN", "Farming and fishing business"], ["AO", "PTP information"], ["AP", "Inversion gain"], ["AQ", "Conservation reserve program payments"], ["AR", "IRA disclosure"], ["AS", "Qualifying advanced coal project property"], ["AT", "Qualifying advanced energy project property"], ["AU", "Advanced manufacturing investment property"], ["AV", "Clean electricity investment property"], ["AW", "Reportable transactions"], ["AX", "Corporate alternative minimum tax"], ["AY", "Foreign partners, Form 8990, Schedule A"], ["AZ", "Reimbursement of preformation expenditures"], ["ZZ", "Other"]], "14": [["A", "Net earnings (loss) from self-employment"], ["B", "Gross farming or fishing income"], ["C", "Gross non-farm income"]], "17": [["A", "Post-1986 depreciation adjustment"], ["B", "Adjusted gain or loss"], ["C", "Depletion (other than oil & gas)"], ["D", "Oil, gas, & geothermal - gross income"], ["E", "Oil, gas, & geothermal - deductions"], ["F", "Other AMT items"]], "18": [["A", "Tax-exempt interest income"], ["B", "Other tax-exempt income"], ["C", "Nondeductible expenses"]], "19": [["A", "Cash and marketable securities"], ["B", "Distribution subject to section 737"], ["C", "Other property"], ["D", "Deemed dist of money - decrease in ptr share liabilities"], ["E", "Reserved"], ["F", "Dist of cash or marketable securities for performing services"], ["G", "Dist of prop other than cash or marketable securities for services"]], "15": [["A", "Zero-emission nuclear power production"], ["B", "Production from advanced nuclear power facilities credit"], ["C", "Low-income housing credit (sec. 42(j)(5)) from post-2007 buildings"], ["D", "Low-income housing credit (other) from post-2007 buildings"], ["E", "Qualified rehabilitation expenditures (rental real estate)"], ["F", ""], ["G", ""], ["H", ""], ["I", ""], ["J", ""], ["K", ""], ["L", ""], ["M", ""], ["N", ""], ["O", ""], ["P", ""], ["Q", ""], ["R", ""], ["S", ""], ["T", ""], ["U", ""], ["V", ""], ["W", ""], ["X", ""], ["Y", ""], ["Z", ""], ["AA", ""], ["AB", ""], ["AC", ""], ["AD", ""], ["AE", ""], ["AF", ""], ["AG", ""], ["AH", "Credit for employer-provided childcare facilities and services"], ["AI", "Low sulfur diesel fuel production credit"], ["AJ", "Qualified railroad track maintenance credit"], ["AK", "Credit for oil and gas production from marginal wells"], ["AL", "Distilled spirits credit"], ["AM", "Energy efficient home credit"], ["AN", ""], ["AO", ""], ["AP", ""], ["AQ", ""], ["AR", ""], ["AS", ""], ["AT", ""], ["AU", ""], ["AV", ""], ["AW", ""], ["AX", ""], ["AY", ""], ["AZ", "Qualified commercial clean vehicle credit"], ["BA", "Credit for small employer health insurance premiums"], ["BB", "Employer credit for paid family and medical leave"], ["BC", "Eligible credits from transferor(s) under section 6418"], ["ZZ", "Other"]]};
+const ROWS = {"11":3,"13":3,"14":2,"15":2,"17":3,"18":3,"19":2,"20":8};     // Source Data Entry rows per code box
+const PEOPLE = {taxpayer:"0000002400", spouse:""};
+const NAMES = {"1":"Ordinary business income","2":"Net rental real estate income","3":"Other net rental income",
+  "4a":"Guaranteed payments for services","4b":"Guaranteed payments for capital","5":"Interest income",
+  "6a":"Ordinary dividends","6b":"Qualified dividends","6c":"Dividend equivalents","7":"Royalties",
+  "8":"Net short-term capital gain","9a":"Net long-term capital gain","9b":"Collectibles (28%) gain",
+  "9c":"Unrecaptured section 1250 gain","10":"Net section 1231 gain","11":"Other income","12":"Section 179 deduction",
+  "13":"Other deductions","14":"Self-employment earnings","15":"Credits","16":"Schedule K-3 attached",
+  "17":"AMT items","18":"Tax-exempt income / nondeductible expenses","19":"Distributions","20":"Other information",
+  "21":"Foreign taxes paid","K1":"Liabilities - ending nonrecourse"};
+const NOT_IN_SDE = {"G":"Not in Source Data Entry","H1":"Not in Source Data Entry","J":"Not in Source Data Entry",
+  "L":"Not in Source Data Entry","M":"Not in Source Data Entry","N":"Not in Source Data Entry",
+  "9c":"Grey in Source Data Entry","12":"Grey in Source Data Entry","16":"Checkbox - Tab can't reach it",
+  "22":"Checkbox - Tab can't reach it","23":"Checkbox - Tab can't reach it"};
+
+// stmt:true = the K-1 shows "See statement"/STMT and NO amount for this line; items = lines added from the statement
+const EXTRA = {0:[{box:"13", code:"ZZ", amt:250}]};   // K-1 index -> [{box, code, amt}] lines typed by the user (no dropdown)
+const K1S = [
+ {name:"RANCHERS GLOBAL LLC", ein:"92-3585592", ssn:"XXX-XX-2400", page:1,
+  info:[["G","Partner type","Limited"],["H1","Domestic / foreign","Domestic"],["J","Profit / loss / capital %","0.718528 → 0.665511"],
+        ["L","Capital account","36,588 → 23,164"],["M","Contributed property w/ built-in gain","No"]],
+  lines:[{box:"K1",code:"",amt:67},{box:"1",code:"",amt:-15347},{box:"5",code:"",amt:3},{box:"16",code:"",amt:"X"},
+         {box:"17",code:"A",amt:6},{box:"18",code:"C",amt:165},{box:"20",code:"A",amt:3},{box:"20",code:"N",amt:63},
+         {box:"20",code:"Z",amt:null,stmt:true,items:[{code:"Z",amt:-15347}]}]},
+ {name:"ACHARI VENTURES FUND I, L.P.", ein:"86-1869871", ssn:"XXX-XX-2400", page:3,
+  info:[["G","Partner type","Limited"],["H1","Domestic / foreign","Domestic"],["J","Profit / loss / capital %","1.796406 → 1.789709"],
+        ["L","Capital account","215,957 → 220,377"],["M","Contributed property w/ built-in gain","No"]],
+  lines:[{box:"5",code:"",amt:2561},{box:"6a",code:"",amt:158},{box:"13",code:"AE",amt:12299},{box:"16",code:"",amt:"X"},
+         {box:"20",code:"A",amt:2719},{box:"20",code:"AJ",amt:null,stmt:true,items:[]}]},
+ {name:"TVC MOMENTUM FUND I, LP", ein:"86-3250535", ssn:"XXX-XX-2400", page:19,
+  info:[["G","Partner type","Limited"],["H1","Domestic / foreign","Domestic"],["J","Profit / loss / capital %","5.263158 → 5.263158"],
+        ["L","Capital account","2,325,397 → 2,294,224"],["N","704(c) gain (loss) - ending","691,058"]],
+  lines:[{box:"5",code:"",amt:19130},{box:"6a",code:"",amt:3260},{box:"9a",code:"",amt:-123739},{box:"13",code:"AE",amt:54824},
+         {box:"16",code:"",amt:"X"},{box:"20",code:"A",amt:22390}]},
+ {name:"DEMO GROWTH FUND LP", ein:"00-0000004", ssn:"XXX-XX-2400", page:37,
+  info:[["G","Partner type","Limited"]],
+  lines:[{box:"5",code:"",amt:880},{box:"13",code:"A",amt:1200},{box:"13",code:"H",amt:450},{box:"13",code:"AE",amt:3100},
+         {box:"13",code:"ZZ",amt:75},{box:"17",code:"",amt:null,stmt:true,items:[{code:"A",amt:500},{code:"F",amt:-120}]}]},
+ {name:"DEMO SPOUSE TEST LP", ein:"00-0000005", ssn:"XXX-XX-1111", page:41,
+  info:[], lines:[{box:"1",code:"",amt:5000},{box:"20",code:"A",amt:5000}]},
+];
+
+// ---------------------------------------------------------------- helpers
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = v => v==null || v==="" ? "" : (typeof v==="string" ? v : v.toLocaleString("en-US"));
+const ERR = /match|No amount|Enter a box|not on the 1065|not a code|needs a code|has no codes/;
+const isErr = why => ERR.test(why || "");
+const desc = (box, code) => { const c = (CODES[box]||[]).find(x => x[0]===code); return c && c[1] ? c[1] : ""; };
+function partner(k){
+  const d = k.ssn.replace(/\D/g,"").slice(-4);
+  const hits = Object.entries(PEOPLE).filter(([w,s]) => s && s.slice(-4)===d);
+  if (hits.length===1) return {who: hits[0][0]==="taxpayer" ? "Taxpayer" : "Spouse", ok:true};
+  return {who: hits.length ? "Matches both" : "No match", ok:false};
+}
+
+// Build the rows of one K-1 in table order and decide Bot / By hand (SDE row limits counted in that order)
+function build(k, ki){
+  const p = partner(k), used = {}, rows = [];
+  const decide = (box, amt) => {
+    if (!p.ok) return ["hand","Box E doesn't match - not entered"];
+    if (NOT_IN_SDE[box]) return ["hand", NOT_IN_SDE[box]];
+    if (amt==null || amt==="") return ["hand","No amount"];
+    if (ROWS[box]){ used[box]=(used[box]||0)+1;
+      if (used[box] > ROWS[box]) return ["hand", `Row ${used[box]} - Source Data Entry has ${ROWS[box]} rows for box ${box}`]; }
+    return ["bot",""];
+  };
+  k.lines.forEach((l, li) => {
+    if (l.stmt){
+      rows.push({kind:"stmt", l, li, entry:"", why: l.items.length ? "" : "Statement - add the lines"});
+      l.items.forEach((it, ii) => { const [entry, why] = decide(l.box, it.amt); rows.push({kind:"item", l, li, it, ii, entry, why}); });
+    } else {
+      const [entry, why] = decide(l.box, l.amt);
+      rows.push({kind:"line", l, li, entry, why});
+    }
+  });
+  (EXTRA[ki] || []).forEach((x, xi) => {
+    let entry, why;
+    const box = (x.box||"").trim(), code = (x.code||"").trim().toUpperCase();
+    if (!box) [entry, why] = ["hand","Enter a box"];
+    else if (!NAMES[box] && !NOT_IN_SDE[box]) [entry, why] = ["hand", `Box ${box} is not on the 1065 K-1`];
+    else if (CODES[box] && !CODES[box].some(c => c[0]===code)) [entry, why] = ["hand", code ? `${code} is not a code for box ${box}` : `Box ${box} needs a code`];
+    else if (!CODES[box] && code) [entry, why] = ["hand", `Box ${box} has no codes`];
+    else [entry, why] = decide(box, x.amt);
+    rows.push({kind:"extra", x, xi, box, code, entry, why});
+  });
+  return {p, rows};
+}
+
+// ---------------------------------------------------------------- render
+function render(){
+  const handAll = [];
+  const sumBody = document.querySelector("#sumtbl tbody"); sumBody.innerHTML = "";
+  const cards = document.getElementById("k1cards"); cards.innerHTML = "";
+  let ready = 0;
+  K1S.forEach((k, ki) => {
+    const {p, rows} = build(k, ki);
+    const info = k.info.map(r => ({box:r[0], label:r[1], val:r[2], why:NOT_IN_SDE[r[0]]}));
+    const bot = rows.filter(r => r.entry==="bot").length;
+    const hand = rows.filter(r => r.entry==="hand").length + info.length;
+    const openStmt = rows.some(r => r.kind==="stmt" && r.why);
+    const status = !p.ok ? ["no","Not entered"] : openStmt ? ["todo","Statement to finish"] : ["ready","Ready"];
+    if (status[0]==="ready") ready++;
+    sumBody.insertAdjacentHTML("beforeend", `<tr><td class="gut"><input type="checkbox" class="vk"></td><td>${ki+1}</td>
+      <td><a href="#k1-${ki}" style="color:var(--navy);font-weight:600;text-decoration:none">${esc(k.name)}</a></td>
+      <td>${esc(k.ein)}</td><td>${p.ok?esc(k.ssn):`<span class="ssn bad">${esc(k.ssn)}</span>`}</td><td>${esc(p.who)}</td>
+      <td class="n">${bot}</td><td class="n">${hand}</td><td><span class="status ${status[0]}">${status[1]}</span></td></tr>`);
+
+    const infoRow = r => `<tr class="hand"><td class="gut"><input type="checkbox" class="vk"></td><td class="box">${esc(r.box)}</td><td></td>
+      <td>${esc(r.label)}</td><td class="n">${esc(r.val)}</td><td></td><td><span class="entry hand">By hand</span></td><td class="wcell">${esc(r.why)}</td></tr>`;
+    const lineRow = r => {
+      const l = r.l, cb = l.box==="16";
+      const d = l.code ? (desc(l.box, l.code) || NAMES[l.box]) : NAMES[l.box];
+      const corr = cb ? "" : `<input class="amt" value="${fmt(l.amt)}" data-orig="${fmt(l.amt)}">`;
+      return `<tr class="${r.entry}${isErr(r.why)?" err":""}"><td class="gut"><input type="checkbox" class="vk"></td><td class="box">${esc(l.box)}</td><td><b>${esc(l.code)}</b></td>
+        <td>${esc(d||"")}</td><td class="n">${cb?"Checked":fmt(l.amt)}</td><td class="n">${corr}</td>
+        <td><span class="entry ${r.entry}">${r.entry==="bot"?"Bot":"By hand"}</span></td><td class="wcell">${esc(r.why)}</td></tr>`;
+    };
+    const stmtRow = r => `<tr class="${r.why?"hand":""}"><td class="gut"><input type="checkbox" class="vk"></td><td class="box">${esc(r.l.box)}</td><td><b>${esc(r.l.code)}</b></td>
+        <td>${esc(NAMES[r.l.box])} - <span class="see">See statement</span><button class="plus" type="button" data-k="${ki}" data-l="${r.li}" title="Add a line from the statement">+</button></td>
+        <td class="n">STMT</td><td></td><td></td><td class="wcell">${esc(r.why)}</td></tr>`;
+    const itemRow = r => {
+      const opts = (CODES[r.l.box]||[]).map(c => `<option value="${c[0]}" ${c[0]===r.it.code?"selected":""}>${c[0]}${c[1]?" - "+esc(c[1]):""}</option>`).join("");
+      return `<tr class="added ${r.entry}${isErr(r.why)?" err":""}"><td class="gut"><input type="checkbox" class="vk"></td><td class="box">${esc(r.l.box)}</td>
+        <td colspan="2"><select class="code" data-k="${ki}" data-l="${r.li}" data-i="${r.ii}">${opts}</select></td>
+        <td class="n"></td><td class="n"><input class="amt user itemamt" data-k="${ki}" data-l="${r.li}" data-i="${r.ii}" value="${fmt(r.it.amt)}" placeholder="Amount">
+        <button class="rm" type="button" data-k="${ki}" data-l="${r.li}" data-i="${r.ii}" title="Remove this line">×</button></td>
+        <td><span class="entry ${r.entry}">${r.entry==="bot"?"Bot":"By hand"}</span></td><td class="wcell">${esc(r.why)}</td></tr>`;
+    };
+    const extraRow = r => {
+      const d = r.box ? (r.code ? (desc(r.box, r.code) || NAMES[r.box] || "") : (NAMES[r.box] || "")) : "";
+      return `<tr class="added ${r.entry}${isErr(r.why)?" err":""}"><td class="gut"><input type="checkbox" class="vk"></td>
+        <td><input class="ubox xbox" data-k="${ki}" data-i="${r.xi}" value="${esc(r.x.box||"")}" placeholder="Box"></td>
+        <td><input class="ucode xcode" data-k="${ki}" data-i="${r.xi}" value="${esc(r.x.code||"")}" placeholder="Code"></td>
+        <td>${esc(d)}</td><td class="n"></td>
+        <td class="n"><input class="amt user xamt" data-k="${ki}" data-i="${r.xi}" value="${fmt(r.x.amt)}" placeholder="Amount">
+        <button class="rm" type="button" data-k="${ki}" data-x="${r.xi}" title="Remove this line">×</button></td>
+        <td><span class="entry ${r.entry}">${r.entry==="bot"?"Bot":"By hand"}</span></td><td class="wcell">${esc(r.why)}</td></tr>`;
+    };
+    const addRow = `<tr class="addrow"><td class="gut"></td><td colspan="7"><button class="addline" type="button" data-k="${ki}">+ Add line</button></td></tr>`;
+    [...info.map(r => ({...r, entry:"hand", amt:r.val})), ...rows.filter(r => r.entry==="hand" && r.kind!=="stmt")].forEach(r =>
+      handAll.push({k:`#${ki+1} ${k.name}`, box: r.box || r.l.box,
+        code: r.kind==="item" ? r.it.code : r.kind==="extra" ? r.code : (r.l ? r.l.code : ""),
+        amt: r.kind==="item" ? fmt(r.it.amt) : r.kind==="extra" ? fmt(r.x.amt) : r.l ? (r.l.box==="16" ? "Checked" : fmt(r.l.amt)) : r.val, why:r.why}));
+
+    cards.insertAdjacentHTML("beforeend", `
+    <div class="card" id="k1-${ki}">
+      <div class="cardhead"><span class="pname">K-1 #${ki+1} · ${esc(k.name)}<span class="ein">EIN ${esc(k.ein)}</span></span>
+        <span class="sub"><span>Box E ${esc(k.ssn)} · ${esc(p.who)}</span><span>PDF page ${k.page}</span></span></div>
+      <div class="cardbody">
+        ${!p.ok ? `<div class="warning">Box E ${esc(k.ssn)} matches neither the taxpayer nor the spouse - this K-1 will not be entered.</div>` : ""}
+        <table class="tk">
+          <colgroup><col class="gutc"><col class="c-box"><col class="c-code"><col><col class="c-amt"><col class="c-corr"><col class="c-entry"><col class="c-warn"></colgroup>
+          <thead><tr><th class="gut"></th><th>Box</th><th>Code</th><th>Description</th><th class="n">Per document</th><th class="n">Corrected amount</th><th>Entry</th><th>Warning</th></tr></thead>
+          <tbody>
+            ${info.map(infoRow).join("")}
+            ${rows.map(r => r.kind==="stmt" ? stmtRow(r) : r.kind==="item" ? itemRow(r) : r.kind==="extra" ? extraRow(r) : lineRow(r)).join("")}
+            ${addRow}
+          </tbody>
+        </table>
+      </div>
+    </div>`);
+  });
+  document.getElementById("k1count").textContent = `${K1S.length} K-1s`;
+  document.querySelector("#handtbl tbody").innerHTML = handAll.map(h => `<tr><td class="gut"><input type="checkbox" class="vk"></td><td>${esc(h.k)}</td>
+    <td class="box">${esc(h.box)}</td><td><b>${esc(h.code)}</b></td><td class="n">${esc(h.amt)}</td>
+    <td class="wcell${isErr(h.why)?" e":""}">${esc(h.why)}</td></tr>`).join("");
+  document.getElementById("handcount").textContent = `${handAll.length} items`;
+  document.getElementById("banner").textContent =
+    `Test client · ${K1S.length} K-1s · ${ready} ready · ${K1S.length-ready} to finish or not entered · ${handAll.length} items by hand`;
+}
+render();
+
+// ---------------------------------------------------------------- actions (in memory only)
+const num = v => { const t = String(v).replace(/[$,\s]/g,""); if (t==="") return null;
+  const neg = /^\(.*\)$/.test(t) || t.startsWith("-"); const n = Number(t.replace(/[()\-]/g,"")); return isNaN(n) ? null : (neg ? -n : n); };
+document.addEventListener("click", e => {
+  const b = e.target.closest("button.plus, button.rm, button.addline"); if (!b) return;
+  if (b.classList.contains("addline")) { (EXTRA[b.dataset.k] ||= []).push({box:"", code:"", amt:null}); render(); return; }
+  if (b.dataset.x !== undefined) { EXTRA[b.dataset.k].splice(Number(b.dataset.x), 1); render(); return; }
+  const l = K1S[b.dataset.k].lines[b.dataset.l];
+  if (b.classList.contains("plus")) l.items.push({code: l.code || (CODES[l.box]||[["",""]])[0][0], amt:null});
+  else l.items.splice(Number(b.dataset.i), 1);
+  render();
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.matches("input.vk")) { t.closest("tr").classList.toggle("vok", t.checked); return; }
+  if (t.matches("select.code")) { K1S[t.dataset.k].lines[t.dataset.l].items[t.dataset.i].code = t.value; render(); }
+  if (t.matches("input.itemamt")) { K1S[t.dataset.k].lines[t.dataset.l].items[t.dataset.i].amt = num(t.value); render(); }
+  if (t.matches("input.xbox"))  { EXTRA[t.dataset.k][t.dataset.i].box = t.value.trim(); render(); }
+  if (t.matches("input.xcode")) { EXTRA[t.dataset.k][t.dataset.i].code = t.value.trim().toUpperCase(); render(); }
+  if (t.matches("input.xamt"))  { EXTRA[t.dataset.k][t.dataset.i].amt = num(t.value); render(); }
+});
+document.addEventListener("input", e => {
+  const t = e.target;
+  if (t.matches("input.amt:not(.user)")) t.classList.toggle("chg", t.value !== t.dataset.orig);
+});
+</script>
+</body>
+</html>

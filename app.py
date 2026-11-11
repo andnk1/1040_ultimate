@@ -1077,8 +1077,33 @@ def _k1_state(owner) -> None:
         wip_mod.save_k1(r.get("wip_path"), [p for p, _ in run.get("files") or []], run.get("state"))
 
 
+def _k1_people(owner) -> dict:
+    """K-1 Prep: the taxpayer's / spouse's SSN from the prior-year return (box E of each K-1 is matched by the last 4)."""
+    r = RUNS.get(owner)
+    if r is None:
+        return {}
+    if "_k1people" not in r:
+        out = {}
+        try:
+            for p in (read_people(r["form"]["pyret"]) if r["form"].get("pyret") else []):
+                key = {"Taxpayer": "tp", "Spouse": "sp"}.get(p.get("role"))
+                if key and p.get("ssn"):
+                    out[key] = p["ssn"]
+        except Exception:  # noqa: BLE001
+            pass
+        r["_k1people"] = out
+    return r["_k1people"]
+
+
+def _k1_label(owner) -> str:
+    """"2025 - Name 1234" (from the work-in-progress file's name) for the UT data entry CSV."""
+    r = RUNS.get(owner) or {}
+    stem = Path(r.get("wip_path") or "").stem
+    return stem.replace("1040 Ultimate WIP", "").strip(" -") if stem.startswith("1040 Ultimate WIP") else ""
+
+
 if k1v_web is not None:
-    k1v_web.HOOKS.update(added=_k1_added, state=_k1_state,
+    k1v_web.HOOKS.update(added=_k1_added, state=_k1_state, people=_k1_people, label=_k1_label,
                          ut_path=lambda owner: (RUNS.get(owner) or {}).get("ut_path") or "")
 
 

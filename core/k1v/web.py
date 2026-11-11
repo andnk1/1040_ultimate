@@ -11,6 +11,8 @@ Copied and adapted from C:\\dev\\K-1_interpretation\\verify1040.py (that folder 
     /k1v/k1/<token>         K-1 Interpreter (UltraTax entry guide, statement amounts, totals, Income Summary,
                             Add to Income Summary)
     /k1v/verify/<token>     K-1 entry check: every K-1 item vs what was typed in UltraTax
+    /k1v/prep/<token>       K-1 Prep (a run opened from the 1040): box E vs taxpayer / spouse, corrected amounts per box,
+                            problems, "Export for UT data entry" (the CSV of APPS_ARCHITECTURE.md) - see prep.py
     /k1v/                   stand-alone reader (upload the PDFs; no 1040 run, nothing goes to an income summary)
 A run opened from the 1040 has its owner (the 1040 run token) from the start. Nothing reaches the 1040 until "Add to Income
 Summary" (handoff.build_package -> HOOKS["added"]). The K-1 page's own work (statement amounts, ticks, comments, corrections)
@@ -31,18 +33,18 @@ from flask import Blueprint, abort, jsonify, render_template, request, send_file
 from .codes_1120s import BOXES_1120S
 from .k1_parser import parse_pdf
 from .k1_rules import ORDER, RULES
-from . import handoff
+from . import handoff, k1_codes, prep
 from .k1_summary import build_summary, write_xlsx
 from .screen_parser import parse_screens
 from .screen_verify import verify_screens
-from .statement_codes import CODES
 from .verify1040_excel import write_verification_xlsx
 
 BASE = "/k1v"
 bp = Blueprint("k1v", __name__, url_prefix=BASE)
 RUNS: dict = {}          # token -> {"k1s", "k1name", "files", "owner", "state", "scr", "scrname", "result", "manual", "flags", "n1065", "n1120"}
 # set by the 1040 app: added(owner, package), state(owner) (save the K-1 work file), ut_path(owner) -> UT input screens or ""
-HOOKS: dict = {"added": None, "state": None, "ut_path": None}
+# people(owner) -> {"tp": taxpayer SSN, "sp": spouse SSN} from the prior-year return; label(owner) -> "2025 - Name 1234"
+HOOKS: dict = {"added": None, "state": None, "ut_path": None, "people": None, "label": None}
 
 
 def _ctx(**kw):
@@ -93,7 +95,7 @@ def read_k1_files(files, pw: str = ""):
         for k in got:
             d = k.to_dict()
             d["page"] += 1000 * n
-            out.append(d)
+            out.append(prep.assign_lids(d))
     return out, problems, counts
 
 
@@ -146,7 +148,7 @@ def attach_screens(token, path, name=None) -> str:
         if not scr["units"]:
             return "No K-1 input screens (K1, K1-2 …) found in the input screens PDF."
         run["scr"], run["scrname"] = scr, name or Path(path).name
-        run["result"] = verify_screens(merge_manual(run["k1s"], run.get("manual"), run.get("flags")), scr)
+        run["result"] = verify_screens(prep.for_check(run), scr)
     except Exception as e:  # noqa: BLE001
         return f"Couldn't read the input screens for the K-1 check: {type(e).__name__}: {e}"
     return ""
@@ -205,7 +207,7 @@ def _merge_amounts(k1s, manual):
             t = a.replace("$", "").replace(",", "").replace(" ", "")
             neg = (t.startswith("(") and t.endswith(")")) or t.startswith("-")
             t = t.strip("()-")
-            if not key or not re.fullmatch(r"\d+(\.\d+)?", t or "x"):
+            if not key or not re.match(r"\d", key) or not re.fullmatch(r"\d+(\.\d+)?", t or "x"):
                 continue
             v = -float(t) if neg else float(t)
             if v:
@@ -214,10 +216,10 @@ def _merge_amounts(k1s, manual):
             out.append(k)
             continue
         k = copy.deepcopy(k)
-        boxes = {re.match(r"\d+", key).group(0) for key, _ in add}
+        boxes = {prep.split_key(key)[0] for key, _ in add}
         k["lines"] = [l for l in k["lines"] if not (l["box"] in boxes and l.get("amt") is None and l.get("stmt") and not l.get("check"))]
         for key, v in add:
-            box = re.match(r"\d+", key).group(0)
+            box = prep.split_key(key)[0]
             k["lines"].append(dict(box=box, code=key[len(box):] or None, amt=v, stmt=True, check=False,
                                    raw="added from statement", key=key, manual=True))
         ob = lambda b: ORDER.index(b) if b in ORDER else 999
@@ -226,11 +228,29 @@ def _merge_amounts(k1s, manual):
     return out
 
 
+def _recheck(run) -> None:
+    """The K-1 entry check again (after a change to what counts: K-1s added, a copy choice, a box correction)."""
+    if run.get("scr"):
+        run["result"] = verify_screens(prep.for_check(run), run["scr"])
+
+
+def _summary(k1s, state):
+    """The Income Summary of the K-1s that count + "box_corr": {rid: amount} - the lines a K-1 Prep box correction moves
+    (the totals tab's Correction column starts from it)."""
+    st = state or {}
+    ks = prep.counted(k1s, st)
+    s = build_summary(ks)
+    s["box_corr"] = prep.summary_corr(ks, st.get("pcorr"), build_summary)[0]
+    return s
+
+
 def _report_ctx(run=None, error=None, filename=None, token=None):
     dicts = run["k1s"] if run else []
-    return _ctx(k1s=dicts, rules=RULES, order=ORDER, summary=build_summary(dicts),
+    state = (run or {}).get("state")
+    return _ctx(k1s=dicts, rules=RULES, order=ORDER, summary=_summary(dicts, state),
                 filename=filename or (run["k1name"] if run else None), error=error, static=False,
-                codes=CODES, token=token, owner=(run or {}).get("owner"), state=(run or {}).get("state"))
+                codes=k1_codes.dropdown(), code_boxes=k1_codes.CODE_BOXES, token=token, owner=(run or {}).get("owner"),
+                state=state, dups=prep.find_copies(dicts, (state or {}).get("dup")), plines=prep.plines_entries(state))
 
 
 def _run(token):
@@ -257,7 +277,7 @@ def home():
     if "pdf" in request.files and "k1pdf" not in request.files:
         f = request.files["pdf"]
         try:
-            k1s = [k.to_dict() for k in _read_upload(f, parse_pdf)]
+            k1s = [prep.assign_lids(k.to_dict()) for k in _read_upload(f, parse_pdf)]
         except Exception as e:  # noqa: BLE001
             return render_template("k1v/report.html", **_report_ctx(error=(f"{f.filename} is password-protected — use the K-1 Verification page and type the password there."
                                                                        if _is_password_error(e) else f"Couldn't read the PDF: {e}"), filename=f.filename))
@@ -282,7 +302,9 @@ def home():
                 pass
         for d in ks:
             d["page"] += 1000 * n
-            run["k1s"].append(d)
+            for l in d["lines"]:                             # line ids follow the page number
+                l.pop("lid", None)
+            run["k1s"].append(prep.assign_lids(d))
         problems += pr
     run["problems"] = problems
     if not run["k1s"]:
@@ -299,7 +321,7 @@ def home():
         if not run["scr"]["units"]:
             return render_template("k1v/home.html", **_ctx(run=None, token=None, owner=None,
                                    error="No K-1 input screens (K1, K1-2 …) found in the Input Screens PDF — print UltraTax File > Print > Input screens."))
-        run["result"] = verify_screens(run["k1s"], run["scr"])
+        run["result"] = verify_screens(prep.counted(run["k1s"], None), run["scr"])
     token = uuid.uuid4().hex[:12]
     RUNS[token] = run
     return render_template("k1v/home.html", **_ctx(run=run, token=token, error=None, tab=None, owner=None))
@@ -327,16 +349,18 @@ def manual(token):
     new, flags = d.get("manual") or {}, d.get("flags") or {}
     changed = new != (run.get("manual") or {}) or flags != (run.get("flags") or {})
     run["manual"], run["flags"] = new, flags
-    if run.get("scr") and changed:
-        run["result"] = verify_screens(merge_manual(run["k1s"], new, flags), run["scr"])
+    if changed:
+        _recheck(run)
     return jsonify(ok=True, changed=changed)
 
 
 @bp.route("/summary", methods=["POST"])
 def summary():
-    """Income Summary for the totals tab, recalculated with the statement amounts."""
+    """Income Summary for the totals tab, recalculated with the statement amounts (K-1 copies left out; "box_corr" = the
+    lines moved by the box corrections typed on K-1 Prep)."""
     d = request.get_json(force=True, silent=True) or {}
-    return jsonify(build_summary(d.get("k1s") or []))
+    run = RUNS.get(d.get("token") or "")
+    return jsonify(_summary(d.get("k1s") or [], (run or {}).get("state")))
 
 
 @bp.route("/add/<token>", methods=["POST"])
@@ -348,12 +372,15 @@ def add_to_income_summary(token):
         return jsonify(ok=False, error="Open the K-1 page from the 1040 (K-1 box, Open K-1 Verification) to add the K-1s."), 400
     d = request.get_json(force=True, silent=True) or {}
     if isinstance(d.get("state"), dict):
-        run["state"] = d["state"]
-    k1s = [k for k in (d.get("k1s") or []) if k.get("form") in handoff.FORMS]
+        run["state"] = prep.keep_prep_keys(run.get("state"), d["state"])
+    st = run.get("state") or {}
+    skip = {p for p, m in prep.find_copies(run["k1s"], st.get("dup")).items() if not m["counted"]}      # a copy counts once
+    k1s = [k for k in (d.get("k1s") or []) if k.get("form") in handoff.FORMS and k.get("page") not in skip]
     if not k1s:
         return jsonify(ok=False, error="No Form 1065 K-1s to add."), 400
-    pkg = handoff.build_package(k1s, (run.get("state") or {}).get("corr") or {}, build_summary(k1s), [n for _, n in run["files"]],
-                                handoff.signature(run["k1s"], run.get("state")), file_ids(run))
+    box_corr, box_rows = prep.summary_corr(k1s, st.get("pcorr"), build_summary)
+    pkg = handoff.build_package(k1s, st.get("corr") or {}, build_summary(k1s), [n for _, n in run["files"]],
+                                handoff.signature(run["k1s"], run.get("state")), file_ids(run), box_corr, box_rows)
     if not HOOKS["added"](run["owner"], pkg):
         return jsonify(ok=False, error="The 1040 run is gone (the program was restarted) — open the client again."), 400
     if HOOKS["state"]:
@@ -368,7 +395,7 @@ def save_state(token):
     run = _run(token)
     d = request.get_json(force=True, silent=True)
     if isinstance(d, dict):
-        run["state"] = d
+        run["state"] = prep.keep_prep_keys(run.get("state"), d)      # what K-1 Prep saved is not the Interpreter's to change
         if run.get("owner") and HOOKS["state"]:
             HOOKS["state"](run["owner"])
     return jsonify(ok=True)
@@ -383,11 +410,51 @@ def add_files(token):
     new = [(p, Path(p).name) for p in paths if p.lower().endswith(".pdf") and os.path.normcase(p) not in have]
     if new:
         _fill(run, (run.get("files") or []) + new)
-        if run.get("scr"):
-            run["result"] = verify_screens(merge_manual(run["k1s"], run.get("manual"), run.get("flags")), run["scr"])
+        _recheck(run)
         if run.get("owner") and HOOKS["state"]:
             HOOKS["state"](run["owner"])
     return jsonify(ok=True, added=len(new), problems=run["problems"])
+
+
+# ------------------------------------------------------------------ K-1 Prep (list of 2026-11-05, items 1 and 6)
+def _prep_data(run):
+    people = (HOOKS["people"] or (lambda o: {}))(run.get("owner")) if run.get("owner") else {}
+    label = (HOOKS["label"] or (lambda o: ""))(run.get("owner")) if run.get("owner") else ""
+    return prep.build(run, people, file_ids(run), client=re.sub(r"^\d{4}\s*-\s*", "", label))
+
+
+@bp.route("/prep/<token>")
+def prep_view(token):
+    run = _run(token)
+    if not run.get("owner"):
+        abort(400, "Open the K-1 page from the 1040 (K-1 box, Open K-1 Verification) for K-1 Prep.")
+    return render_template("k1v/prep.html", **_ctx(token=token, owner=run["owner"], data=_prep_data(run)))
+
+
+@bp.route("/prep/<token>/save", methods=["POST"])
+def prep_save(token):
+    """A change on K-1 Prep (a corrected amount, a tick, count / don't count, the taxpayer / spouse SSN) - also used by the
+    Interpreter for count / don't count. Saved in the K-1 work file; the entry check runs again."""
+    run = _run(token)
+    prep.save(run, request.get_json(force=True, silent=True) or {})
+    _recheck(run)
+    if run.get("owner") and HOOKS["state"]:
+        HOOKS["state"](run["owner"])
+    return jsonify(ok=True, data=_prep_data(run))
+
+
+@bp.route("/prep/<token>/export")
+def prep_export(token):
+    """"Export for UT data entry": the CSV the separate UT Data Entry app reads (columns: APPS_ARCHITECTURE.md)."""
+    run = _run(token)
+    data = _prep_data(run)
+    if not data["people"].get("tp"):
+        abort(400, "Enter the taxpayer SSN (last 4) on K-1 Prep first - box E is matched to it.")
+    if not prep.export_rows(data):
+        abort(400, "Nothing to export - no K-1 is Ready.")
+    label = (HOOKS["label"] or (lambda o: ""))(run.get("owner")) if run.get("owner") else ""
+    name = ("UT data entry K-1 " + label).strip() + ".csv"
+    return send_file(BytesIO(prep.export_csv(data)), as_attachment=True, download_name=name, mimetype="text/csv")
 
 
 @bp.route("/verify/<token>/excel")

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-1 Prep</title>
+<style>
+/* screen spec: design/k1_prep.md (look: design/cfoa-tools.css + design/k1_prep_mockup.html, only the document-side columns) */
+:root{
+  --navy:#003366; --blue:#3C69AB; --teal:#4e7874; --green:#446B67; --mint:#7DD8C9; --mint-hover:#9BE3D7;
+  --ink:#374151; --line:#9AA3B2; --grey:#DFE1E9; --cardbg:#EFEFF7;
+  --ok:#E8F8F5; --secrow:#F7F7FB;
+  --changed-bg:#FDF0F0; --changed-text:#1F5FBF;
+  --warn:#8B0000; --warn-bg:#FDF0F0;
+  --info:#294F4C; --info-bg:#F1F5F4;
+  --orange:#B45309; --orangebg:#FEF3E2; --orangeline:#F5C58A;
+}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#fff;color:var(--ink)}
+.wrap{padding:20px 16px 50px}
+.back{font-size:.85rem;margin:0 0 10px}.back a{color:var(--navy);text-decoration:none;font-weight:600}
+h1{color:var(--navy);font-size:2.2rem;font-weight:800;margin:0 0 16px}
+.banner{background:var(--info-bg);border-left:4px solid var(--info);color:var(--info);font-weight:600;padding:9px 14px;border-radius:6px;margin-bottom:14px;font-size:.88rem}
+.warning{background:var(--warn-bg);border-left:4px solid var(--warn);color:var(--warn);font-weight:600;padding:7px 12px;border-radius:6px;margin:0 0 8px;font-size:.86rem}
+.note{color:var(--ink);font-weight:600;padding:7px 12px;font-size:.86rem}
+.card{background:var(--cardbg);border:1px solid var(--line);border-radius:8px;margin-bottom:16px;overflow:hidden}
+.card.off{opacity:.65}
+.cardhead{background:var(--navy);color:#fff;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:9px 14px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.cardhead .pname{text-transform:none;letter-spacing:0;font-size:1rem}
+.cardhead .ein{font-weight:400;opacity:.85;margin-left:8px;font-size:.9rem}
+.cardhead .sub{text-transform:none;letter-spacing:0;font-weight:400;opacity:.9;display:flex;gap:18px}
+.cardbody{padding:8px 6px 10px}
+table.tk{width:100%;border-collapse:separate;border-spacing:0;font-size:.86rem}
+table.tk td,table.tk th{padding:5px 9px;border-bottom:1px solid var(--grey);background:#fff;vertical-align:middle}
+table.tk th{background:var(--secrow);color:var(--teal);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;text-align:left}
+table.tk .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.tk .gut{background:transparent!important;border:none!important;width:28px;padding:0 6px 0 0;text-align:center}
+table.tk .gut input{width:16px;height:16px;accent-color:var(--green);cursor:pointer;margin:0}
+table.tk tr>*:nth-child(2){border-left:1px solid var(--grey)}
+table.tk tr>*:last-child{border-right:1px solid var(--grey)}
+table.tk thead tr>*:not(.gut){border-top:1px solid var(--grey)}
+table.tk thead tr>*:nth-child(2){border-top-left-radius:8px}
+table.tk thead tr>*:last-child{border-top-right-radius:8px}
+table.tk tbody tr:last-child>*:nth-child(2){border-bottom-left-radius:8px}
+table.tk tbody tr:last-child>*:last-child{border-bottom-right-radius:8px}
+table.tk tr.vok>*:not(.gut){background:var(--ok)}
+table.tk tr.dim>*:not(.gut){color:#8A93A3}
+input.amt{width:120px;text-align:right;padding:4px 8px;border:1px solid var(--grey);border-radius:5px;font:inherit;font-variant-numeric:tabular-nums;background:#fff;color:var(--ink)}
+input.amt.chg{background:var(--changed-bg);color:var(--changed-text)}
+input.amt.bad{border-color:var(--warn)}
+/* lines the user adds: pale orange (not pink: they are not errors) */
+input.amt.user{background:var(--orangebg);border-color:var(--orangeline);color:var(--ink)}
+input.amt.user[readonly]{cursor:default}
+input.ubox,input.ucode{width:60px;padding:4px 8px;border-radius:5px;border:1px solid var(--orangeline);font:inherit;background:var(--orangebg);color:var(--ink)}
+input.ucode{text-transform:uppercase}
+select.code{padding:4px 6px;border:1px solid var(--orangeline);border-radius:5px;font:inherit;font-size:.84rem;width:100%;background:var(--orangebg);color:var(--ink)}
+button{display:inline-block;border:none;border-radius:8px;padding:10px 22px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+button.botbtn{background:var(--teal);color:#fff;min-width:230px}
+button.botbtn:hover{background:var(--green)}
+button.plus{background:var(--mint);color:var(--green);font-weight:800;padding:1px 10px;font-size:.95rem;border-radius:5px;margin-left:10px;min-width:0}
+button.plus:hover,button.addline:hover{background:var(--mint-hover)}
+button.rm{background:none;color:#9AA3B2;padding:0 6px;font-size:1rem;min-width:0}
+button.rm:hover{color:var(--warn)}
+button.addline{background:var(--mint);color:var(--green);font-weight:700;padding:3px 14px;font-size:.84rem;border-radius:5px;min-width:0}
+.bar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}
+#msg{font-size:.86rem;font-weight:600}
+#msg.err{color:var(--warn)}
+.box{font-weight:700;color:var(--navy);white-space:nowrap}
+td.wcell{color:var(--warn);font-weight:600;font-size:.8rem}
+tr.err td.wcell{background:var(--warn-bg)!important;box-shadow:inset 4px 0 0 var(--warn)}
+.see{font-weight:600;color:var(--orange)}
+.ssn.bad{background:var(--warn-bg);color:var(--warn);border-radius:4px;padding:1px 8px;font-weight:700}
+.status{font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+.status.ready{color:var(--teal)}
+.status.todo,.status.no{color:var(--warn)}
+.status.off{color:#8A93A3}
+.people{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;padding:6px 8px}
+.people label{display:block;font-size:.72rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.people input{padding:6px 10px;border:1px solid var(--grey);border-radius:5px;font:inherit;width:150px}
+.cnt{display:inline-flex;gap:14px;margin-left:14px;font-weight:600;color:var(--ink);font-size:.84rem}
+.cnt label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.cnt input{width:16px;height:16px;accent-color:var(--green);margin:0}
+a.k1link{color:var(--navy);font-weight:600;text-decoration:none}
+col.gutc{width:28px} col.c-box{width:60px} col.c-code{width:70px} col.c-amt{width:150px} col.c-corr{width:190px} col.c-warn{width:320px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="back"><a href="{{ k1v_base }}/?for={{ owner }}">&larr; K-1 Verification</a></p>
+  <h1>K-1 Prep</h1>
+  <div class="banner" id="banner"></div>
+
+  <div class="card">
+    <div class="cardhead">Client</div>
+    <div class="cardbody"><div class="people">
+      <div><label for="tp">Taxpayer SSN (last 4)</label><input id="tp" data-who="tp" data-fid="tp" maxlength="11" autocomplete="off"></div>
+      <div><label for="sp">Spouse SSN (last 4)</label><input id="sp" data-who="sp" data-fid="sp" maxlength="11" autocomplete="off" placeholder="none"></div>
+    </div></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">K-1s<span class="sub" id="k1count"></span></div>
+    <div class="cardbody">
+      <table class="tk" id="sumtbl">
+        <thead><tr><th class="gut"></th><th>#</th><th>Partnership</th><th>EIN</th><th>Box E</th><th>Partner</th>
+          <th class="n">Lines</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="k1cards"></div>
+
+  <div class="bar">
+    <button class="botbtn" type="button" id="savebtn">Save</button>
+    <button class="botbtn" type="button" id="exportbtn">Export for UT data entry</button>
+    <span id="msg"></span>
+  </div>
+</div>
+
+<script>
+const BASE = {{ k1v_base|tojson }};
+const TOKEN = {{ token|tojson }};
+let DATA = {{ data|tojson }};
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = v => v == null || v === "" ? "" : (typeof v === "string" ? v
+  : (v < 0 ? "-" : "") + Math.abs(v).toLocaleString("en-US", {maximumFractionDigits: 2}));
+const num = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); if (t === "") return null;
+  const neg = /^\(.*\)$/.test(t) || t.startsWith("-"); const n = Number(t.replace(/[()\-]/g, "")); return isNaN(n) ? NaN : (neg ? -n : n); };
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+// count / don't count on a "check" K-1 (same partnership and partner, different amounts)
+function countBox(k){
+  if (!k.dup || k.dup.kind !== "check") return "";
+  const on = k.dup.counted;
+  return `<span class="cnt"><label><input type="checkbox" class="dupc" data-page="${k.page}" data-v="count" ${k.dup.chosen && on ? "checked" : ""}> Count</label>
+    <label><input type="checkbox" class="dupc" data-page="${k.page}" data-v="skip" ${k.dup.chosen && !on ? "checked" : ""}> Don't count</label></span>`;
+}
+const dupNote = k => !k.dup ? "" : k.dup.kind === "copy" ? `Copy of ${esc(k.dup.of_label)} — not counted`
+  : `Same partnership and partner as ${esc(k.dup.of_label)}, different amounts${k.amended ? " — Amended K-1" : ""}${k.dup.counted ? "" : " — not counted"}`;
+
+// one row of a K-1 card
+function row(k, r){
+  const cls = [r.tick ? "vok" : "", r.problem ? "err" : ""].join(" ").trim();
+  const tick = `<td class="gut"><input type="checkbox" class="vk" data-id="${esc(r.id)}" ${r.tick ? "checked" : ""}></td>`;
+  const prob = `<td class="wcell">${esc(r.problem)}</td>`;
+  const pg = k.page;
+  if (r.kind === "info")                                   // Part II item: value as printed, no corrected amount
+    return `<tr class="${cls}">${tick}<td class="box">${esc(r.box)}</td><td></td><td>${esc(r.desc)}</td>
+      <td class="n" colspan="2">${r.vals.map(esc).join("<br>")}</td>${prob}</tr>`;
+  if (r.kind === "stmt")
+    return `<tr class="${cls}">${tick}<td class="box">${esc(r.box)}</td><td><b>${esc(r.code)}</b></td>
+      <td>${esc(r.desc)} - <span class="see">See statement</span><button class="plus" type="button" data-page="${pg}" data-under="${esc(r.id)}" data-box="${esc(r.box)}" data-code="${esc(r.pick)}" title="Add a line">+</button></td>
+      <td class="n">STMT</td><td></td>${prob}</tr>`;
+  if (r.kind === "interp")                                 // typed on the K-1 Interpreter: changed there
+    return `<tr class="${cls}">${tick}<td class="box">${esc(r.box)}</td><td><b>${esc(r.code)}</b></td><td>${esc(r.desc)}</td>
+      <td class="n"></td><td class="n"><input class="amt user" readonly value="${esc(fmt(r.eff))}" title="Typed on the K-1 Interpreter"></td>${prob}</tr>`;
+  if (r.kind === "add") {
+    const ids = `data-page="${pg}" data-n="${r.n}"`;
+    const amt = `<input class="amt user pamt" ${ids} data-fid="a${esc(r.id)}" value="${esc(num(r.typed) == null || Number.isNaN(num(r.typed)) ? r.typed : fmt(num(r.typed)))}" placeholder="Amount"><button class="rm" type="button" ${ids} title="Remove this line">×</button>`;
+    if (r.fixed) {                                          // under a "see statement" line: box fixed, code from the box's list
+      const list = DATA.codes[r.box] || [];
+      const opts = (r.code && !list.some(c => c[0] === r.code) ? [[r.code, ""]] : []).concat(list);
+      const sel = `<select class="code pcode" ${ids} data-fid="k${esc(r.id)}">${r.code ? "" : `<option value="" selected></option>`}${opts.map(c =>
+        `<option value="${esc(c[0])}" ${c[0] === r.code ? "selected" : ""}>${esc(c[0])}${c[1] ? " - " + esc(c[1]) : ""}</option>`).join("")}</select>`;
+      return `<tr class="${cls}">${tick}<td class="box">${esc(r.box)}</td><td colspan="2">${sel}</td><td class="n"></td><td class="n">${amt}</td>${prob}</tr>`;
+    }
+    return `<tr class="${cls}">${tick}<td><input class="ubox" ${ids} data-fid="b${esc(r.id)}" value="${esc(r.box)}" placeholder="Box"></td>
+      <td><input class="ucode" ${ids} data-fid="k${esc(r.id)}" value="${esc(r.code)}" placeholder="Code"></td><td>${esc(r.desc)}</td>
+      <td class="n"></td><td class="n">${amt}</td>${prob}</tr>`;
+  }
+  let per = fmt(r.amt), corr = "";
+  if (r.kind === "check") per = "Checked";
+  if (r.kind === "line") corr = `<input class="amt corr${r.changed ? " chg" : ""}" data-id="${esc(r.id)}" data-fid="c${esc(r.id)}" data-orig="${esc(fmt(r.amt))}" value="${esc(r.changed ? fmt(num(r.corr)) : fmt(r.amt))}">`;
+  return `<tr class="${cls}">${tick}<td class="box">${esc(r.box)}</td><td><b>${esc(r.code)}</b></td><td>${esc(r.desc)}</td>
+    <td class="n">${per}</td><td class="n">${corr}</td>${prob}</tr>`;
+}
+
+function render(){
+  const d = DATA, fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
+  for (const w of ["tp", "sp"]) { const el = document.getElementById(w); if (document.activeElement !== el) el.value = d.people[w] || ""; }
+  document.getElementById("banner").textContent = [d.client, plural(d.n, "K-1"), `${d.ready} ready`, `${d.todo} to finish`, plural(d.prob, "problem")]
+    .filter(Boolean).join(" · ") + (d.off ? ` · ${d.off} not counted` : "") + (d.n1120 ? ` · ${d.n1120} Form 1120-S not shown` : "");
+  document.getElementById("k1count").textContent = plural(d.n, "K-1");
+
+  document.querySelector("#sumtbl tbody").innerHTML = d.k1s.map((k, ki) => `<tr class="${k.status[0] === "off" ? "dim" : ""}"><td class="gut"></td><td>${k.n}</td>
+    <td><a class="k1link" href="#k1-${ki}">${esc(k.name || "(name not read)")}</a></td>
+    <td>${esc(k.ein)}</td><td>${k.partner.ok ? esc(k.E) : `<span class="ssn bad">${esc(k.E || "not read")}</span>`}</td><td>${esc(k.partner.who)}</td>
+    <td class="n">${k.nlines}</td><td><span class="status ${k.status[0]}">${esc(k.status[1])}</span>${countBox(k)}</td></tr>`).join("");
+
+  document.getElementById("k1cards").innerHTML = d.k1s.map((k, ki) => {
+    const off = k.status[0] === "off";
+    const head = `<div class="cardhead"><span class="pname">K-1 #${k.n} · ${esc(k.name || "(name not read)")}${k.ein ? `<span class="ein">EIN ${esc(k.ein)}</span>` : ""}</span>
+      <span class="sub"><span>Box E ${esc(k.E || "not read")}${k.partner.who ? " · " + esc(k.partner.who) : ""}</span><span>PDF page ${k.pdf_page}</span></span></div>`;
+    const dn = k.dup ? `<div class="${k.dup.red ? "warning" : "note"}">${dupNote(k)}${countBox(k)}</div>` : "";
+    if (off) return `<div class="card off" id="k1-${ki}">${head}<div class="cardbody">${dn}</div></div>`;
+    return `<div class="card" id="k1-${ki}">${head}
+      <div class="cardbody">
+        ${k.partner.ok ? "" : `<div class="warning">${esc(k.partner.msg)}</div>`}${dn}
+        <table class="tk">
+          <colgroup><col class="gutc"><col class="c-box"><col class="c-code"><col><col class="c-amt"><col class="c-corr"><col class="c-warn"></colgroup>
+          <thead><tr><th class="gut"></th><th>Box</th><th>Code</th><th>Description</th><th class="n">Per document</th><th class="n">Corrected amount</th><th>Problem</th></tr></thead>
+          <tbody>${k.rows.map(r => row(k, r)).join("")}
+            <tr class="addrow"><td class="gut"></td><td colspan="6"><button class="addline" type="button" data-page="${k.page}">+ Add line</button></td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join("");
+  if (fid) { const el = document.querySelector(`[data-fid="${CSS.escape(fid)}"]`); if (el && el !== document.activeElement) el.focus(); }
+}
+
+async function save(change, after){
+  const msg = document.getElementById("msg"); msg.textContent = ""; msg.className = "";
+  try {
+    const r = await fetch(`${BASE}/prep/${TOKEN}/save`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(change)});
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error("server said " + r.status);
+    DATA = j.data; render();
+    if (after) after();
+    return true;
+  } catch (e) { msg.textContent = "Not saved — is run.bat still running? Reload the page."; msg.className = "err"; return false; }
+}
+
+// a line just added: put the cursor in it (the amount under a "see statement" line, the box of a free line)
+function focusNew(page, free){
+  const k = DATA.k1s.find(x => x.page === page); if (!k) return;
+  const adds = k.rows.filter(r => r.kind === "add" && !r.fixed === free); if (!adds.length) return;
+  const r = adds.reduce((a, b) => (b.n > a.n ? b : a));
+  const el = document.querySelector(`[data-fid="${CSS.escape((free ? "b" : "a") + r.id)}"]`); if (el) el.focus();
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("button.plus, button.addline, button.rm"); if (!b) return;
+  const page = Number(b.dataset.page);
+  if (b.classList.contains("plus")) save({pline: {op: "add", page, under: b.dataset.under, box: b.dataset.box, code: b.dataset.code}}, () => focusNew(page, false));
+  else if (b.classList.contains("addline")) save({pline: {op: "add", page, under: "", box: "", code: ""}}, () => focusNew(page, true));
+  else save({pline: {op: "del", page, n: b.dataset.n}});
+});
+
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.matches("input.vk")) { save({pticks: {[t.dataset.id]: t.checked}}); return; }
+  if (t.matches("input.dupc")) { save({dup: {[t.dataset.page]: t.checked ? t.dataset.v : ""}}); return; }
+  if (t.matches("#tp, #sp")) { save({people: {[t.dataset.who]: t.value}}); return; }
+  const line = f => save({pline: Object.assign({op: "set", page: Number(t.dataset.page), n: t.dataset.n}, f)});
+  if (t.matches("input.ubox")) { line({box: t.value}); return; }
+  if (t.matches("input.ucode, select.pcode")) { line({code: t.value}); return; }
+  if (t.matches("input.pamt")) {
+    const v = num(t.value);
+    if (Number.isNaN(v)) { t.classList.add("bad"); return; }
+    line({amt: v === null ? "" : String(v)}); return;
+  }
+  if (t.matches("input.corr")) {
+    const v = num(t.value), o = num(t.dataset.orig);
+    if (Number.isNaN(v)) { t.classList.add("bad"); return; }
+    save({pcorr: {[t.dataset.id]: (v === null || v === o) ? "" : String(v)}});
+  }
+});
+
+document.getElementById("savebtn").addEventListener("click", async () => {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();      // a value being typed is saved first
+  await new Promise(r => setTimeout(r, 50));
+  if (await save({})) { const m = document.getElementById("msg"); m.textContent = "Saved " + new Date().toLocaleTimeString("en-US", {hour: "2-digit", minute: "2-digit"}); }
+});
+
+document.getElementById("exportbtn").addEventListener("click", async () => {
+  const msg = document.getElementById("msg"); msg.textContent = ""; msg.className = "";
+  try {
+    const r = await fetch(`${BASE}/prep/${TOKEN}/export`);
+    if (!r.ok) { const t = await r.text(); const m = t.match(/<p>([\s\S]*?)<\/p>/); throw new Error(m ? m[1] : "server said " + r.status); }
+    const cd = r.headers.get("Content-Disposition") || "", fn = (cd.match(/filename="?([^";]+)"?/) || [])[1] || "UT data entry K-1.csv";
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = fn;
+    document.body.appendChild(a); a.click(); a.remove();
+    const left = DATA.n - DATA.ready - DATA.off;
+    msg.textContent = `Exported ${plural(DATA.ready, "K-1")}` + (left ? ` — ${left} not exported (to finish or with a problem)` : "");
+  } catch (e) { const d = document.createElement("textarea"); d.innerHTML = e.message; msg.textContent = d.value; msg.className = "err"; }
+});
+
+render();
+</script>
+</body>
+</html>

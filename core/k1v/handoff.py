@@ -51,14 +51,26 @@ def signature(k1s: list, state: dict | None) -> str:
     corrections) - compared with the package to say "changed since added"."""
     st = state or {}
     keep = {k: st.get(k) for k in ("stmt", "stmtDone", "sch11", "s11s", "corr")}
+    keep.update({k: st[k] for k in ("pcorr", "dup", "plines") if st.get(k)})   # K-1 Prep: box corrections, count / don't count, added lines
     lines = [(k.get("page"), k.get("ein"), k.get("name"), [(l.get("key"), l.get("amt")) for l in k.get("lines") or []])
              for k in k1s if k.get("form") in FORMS]
     return hashlib.sha1(json.dumps([lines, keep], sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
-def build_package(k1s: list, corr: dict, summary: dict, files: list, sig: str = "", fids: list | None = None) -> dict:
+def build_package(k1s: list, corr: dict, summary: dict, files: list, sig: str = "", fids: list | None = None,
+                  box_corr: dict | None = None, box_rows: dict | None = None) -> dict:
     """summary = build_summary(k1s) (with the statement amounts); corr = {rid: typed correction} from the K-1 page's totals tab;
-    files = the run's K-1 file names (file n holds pages 1000*n ...); fids = their fingerprints (same order)."""
+    files = the run's K-1 file names (file n holds pages 1000*n ...); fids = their fingerprints (same order);
+    box_corr = {rid: amount} - the lines moved by a box correction typed on K-1 Prep (prep.summary_corr): the corrected
+    amount of the line unless the totals tab has its own correction; box_rows = the corrected summary's rows (a line that
+    exists only once corrected)."""
+    box_corr = box_corr or {}
+    summary = {"sections": [dict(s, rows=list(s["rows"])) for s in summary["sections"]]}
+    have = {r["rid"] for s in summary["sections"] for r in s["rows"]}
+    for rid in box_corr:                                         # nothing read on that line, an amount once corrected
+        if rid not in have and rid in (box_rows or {}):
+            sec, r = box_rows[rid]
+            next(s for s in summary["sections"] if s["key"] == sec)["rows"].append(dict(r, amt=0))
     by_page = {k["page"]: k for k in k1s if k.get("form") in FORMS}
     at = lambda lst, page: lst[page // 1000] if 0 <= (page or 0) // 1000 < len(lst) else ""
     file_of = lambda page: at(files, page)
@@ -70,6 +82,8 @@ def build_package(k1s: list, corr: dict, summary: dict, files: list, sig: str = 
         for r in s["rows"]:
             k = by_page.get(r["page"]) or {}
             c = _num((corr or {}).get(r["rid"]))
+            if c is None and r["rid"] in box_corr:
+                c = box_corr[r["rid"]]
             if not r["amt"] and c is None and not r.get("comment"):
                 continue
             line = r["rid"].rsplit("|", 1)[0]                     # "int", "ord|E", "lt1256" ... (the rid without its page)

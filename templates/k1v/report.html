@@ -145,7 +145,13 @@ const ORDER = {{ order|tojson }};
 const FILE = {{ (filename or "")|tojson }};
 let SUMMARY = {{ summary|tojson }};
 const STATIC = {{ 'true' if static else 'false' }};
-const CODES = {{ (codes or [])|tojson }};      // [box, code, IRS name] for the statement-amount dropdowns (boxes 11 / 13 / 20)
+const CODES = {{ (codes or [])|tojson }};      // [box, code, name] for the statement-amount dropdowns - the one K-1 code list (k1_codes.py)
+const CODE_BOXES = {{ (code_boxes or ["11","13","20"])|tojson }};   // the boxes that take a code
+// K-1 copies (same partnership EIN + partner + year): page -> {kind:"copy"|"check", of:[pages], counted, chosen}. A K-1 that is
+// not counted stays on the page but is left out of the totals, the Income Summary, Add to Income Summary and the Excel file.
+const DUPS = {{ (dups or {})|tojson }};
+const skipK = k => { const m = DUPS[k.page]; return !!(m && !m.counted); };
+const COUNTED = () => K1S.filter(k => !skipK(k));
 const BASE = {{ k1v_base|tojson }};
 const TOKEN = {{ (token or "")|tojson }};      // run id in verify1040 (statement amounts are sent there for the 1040 verification)
 const ORIG = {};                               // page -> K-1 as read from the PDF (before statement amounts)
@@ -158,6 +164,8 @@ const UT = {};   // page -> UT number
 const SKEY = "k1interp|"+FILE;
 // opened from the 1040: the page's work is kept with the client (K-1 work-in-progress file) - what the server holds wins
 const SERVER_STATE = {{ state|tojson }};
+const PCORR = (SERVER_STATE&&SERVER_STATE.pcorr)||{};   // line id -> the corrected amount typed on K-1 Prep (shown here; changed there)
+const PL = {{ (plines or {})|tojson }};   // page -> [[key, amount, "p<n>"]] statement lines added on K-1 Prep (shown here; changed there)
 if(SERVER_STATE&&typeof SERVER_STATE==="object"){try{localStorage.setItem(SKEY,JSON.stringify(SERVER_STATE))}catch(e){}}
 let SYNC_T=null;
 const k1Post=()=>{SYNC_T=null; return fetch(BASE+"/state/"+TOKEN,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(loadState())}).catch(()=>{});};
@@ -292,6 +300,8 @@ function renderK1(k,i){
     const title=r?(general?`Box ${l.box}${l.code?" "+l.code:""} — ${r.label.split("— ")[1]}`:r.label):`Box ${l.box}${l.code?" "+l.code:""}`;
     const tags=[]; if(l.stmt) tags.push(T.stmt); if(l.manual) tags.push(T.man,`<a href="#" class="rmst noprint" data-page="${k.page}" data-src="${l.src}" title="Remove this added amount">remove</a>`); if(l.box==="16") tags.push(T.k3); if(general && l.code) tags.push(T.gen);
     const value=l.check?"Checked":(l.amt==null?"See statement":fmt(l.amt));
+    const pcv=l.lid?parseAmt(PCORR[l.lid]):null;
+    if(pcv!==null&&!Number.isNaN(pcv)&&l.amt!=null&&pcv!==l.amt) tags.push(`<span class="tag man">K-1 Prep: corrected to ${fmtIn(pcv)}</span>`);
     if(!r){ out.push(item(title,value,[T.norule].concat(tags),tri("","Read the statement. No UT mapping yet.",""),true)); continue; }
     const flag=r.flag?nbox(r.flag):"";   // Form 7217 note: orange (tag stays red)
     out.push(item(title,value,tags.concat(r.flag?[T.f7217]:[]),tri(r.where,flag+esc(fill(r.note,k)).replace(/\n/g,"<br>"),esc(fill(r.why,k)),r.f1040,r.ut_warning,r.where_note,
@@ -301,34 +311,40 @@ function renderK1(k,i){
   const zl=zeros.length?`<div class="zeros">Printed as zero (not shown): ${zeros.map(z=>"Box "+esc(z)).join(", ")}</div>`:"";
   let slots=""; for(let j=0;j<6;j++) slots+=`<span class="stslot"><select class="stsel" data-page="${k.page}" data-j="${j}">${OPTS}</select><input type="text" class="stamt" data-page="${k.page}" data-j="${j}" placeholder="Amount"></span>`;
   const stl=`<div class="stline noprint" data-page="${k.page}"><span class="lbl">Statement amounts</span>${slots}</div>`;
+  const dm=DUPS[k.page]; let dupl="";
+  if(dm){ const of=dm.of.map(p=>"PDF page "+p).join(", ");
+    dupl=dm.kind==="copy"?`<div class="warnline">Copy of ${of} — not counted</div>`
+      :`<div class="warnline">Check: same partnership and partner as ${of}, different amounts${dm.counted?"":" — not counted"}<span class="schbox noprint" style="display:inline-flex;margin:0 0 0 14px"><label><input type="checkbox" class="dupc" data-page="${k.page}" data-v="count"${dm.chosen&&dm.counted?" checked":""}> Count</label><label><input type="checkbox" class="dupc" data-page="${k.page}" data-v="skip"${dm.chosen&&!dm.counted?" checked":""}> Don't count</label></span></div>`; }
 
   return `<div class="card" id="k1-${i}" data-page="${k.page}"><div class="cardhead"><span class="pname">K-1 #${i+1} · ${esc(k.name||"(name not read)")}${k.ein?`<span class="ein">EIN ${esc(k.ein)}</span>`:""}</span><span style="display:flex;gap:18px;align-items:center"><button type="button" class="clr" data-page="${k.page}">Clear review marks</button><span class="utbox">UT # <input type="text" class="utn" data-page="${k.page}" maxlength="8"><span class="pv utp"></span></span><span>PDF page ${k.page}</span></span></div>
     <div class="badges">${badges.join("")}</div>
     <div class="pcwrap"><textarea class="pcom" data-page="${k.page}" placeholder="Partnership comments"></textarea><div class="pv pcomp"></div></div>
     ${(k.address||[]).length?`<div class="addr">${(k.address||[]).map(esc).join("\n")}</div>`:""}
-    <div class="cardbody">${warn}${out.join("")}${zl}${stl}</div></div>`;
+    <div class="cardbody">${dupl}${warn}${out.join("")}${zl}${stl}</div></div>`;
 }
 
 /* ---------------- statement amounts (K-1 says "STMT": pick box/code + type the amount) ---------------- */
-const OPTS='<option value=""></option>'+["11","13","20"].map(b=>`<optgroup label="Box ${b}">`+CODES.filter(c=>c[0]===b).map(c=>`<option value="${b}${c[1]}" title="${esc(c[2])}">${b}${c[1]} ${esc(c[2].length>16?c[2].slice(0,15).trim()+"…":c[2])}</option>`).join("")+"</optgroup>").join("");
+const OPTS='<option value=""></option>'+CODE_BOXES.map(b=>`<optgroup label="Box ${b}">`+CODES.filter(c=>c[0]===b).map(c=>`<option value="${b}${c[1]}" title="${esc(c[2])}">${b}${c[1]} ${esc(c[2].length>16?c[2].slice(0,15).trim()+"…":c[2])}</option>`).join("")+"</optgroup>").join("");
 function parseAmt(t){
   t=String(t||"").replace(/[$\s,]/g,""); if(!t) return null;
   const neg=/^\(.*\)$/.test(t)||t.startsWith("-"); t=t.replace(/[()\-]/g,"");
   if(!/^\d+(\.\d+)?$/.test(t)) return NaN; const v=parseFloat(t); return neg?-v:v;
 }
 function entriesFor(pg){   // committed + open slots, each tagged with where it came from (for "remove")
-  return (DONE[pg]||[]).map((e,i)=>[e[0],e[1],"d"+i]).concat((STMT[pg]||[]).map((e,j)=>[e[0],e[1],"s"+j]));
+  return (DONE[pg]||[]).map((e,i)=>[e[0],e[1],"d"+i]).concat((STMT[pg]||[]).map((e,j)=>[e[0],e[1],"s"+j])).concat(PL[pg]||[]);
 }
-function allManual(){ const m={}; new Set([...Object.keys(DONE),...Object.keys(STMT)]).forEach(pg=>{const e=entriesFor(pg).map(x=>[x[0],x[1]]).filter(x=>x[0]||x[1]); if(e.length) m[pg]=e;}); return m; }
+// what this page typed (K-1 Prep's lines are added by the server itself)
+function allManual(){ const m={}; new Set([...Object.keys(DONE),...Object.keys(STMT)]).forEach(pg=>{const e=entriesFor(pg).filter(x=>x[2][0]!=="p").map(x=>[x[0],x[1]]).filter(x=>x[0]||x[1]); if(e.length) m[pg]=e;}); return m; }
 const fmtIn=v=>(v<0?"-":"")+Math.abs(v).toLocaleString("en-US",{maximumFractionDigits:2});
 function mergeK1(k0,entries){
   const k=JSON.parse(JSON.stringify(k0));
   const add=(entries||[]).map(([key,a,src])=>[key,parseAmt(a),src]).filter(([key,v])=>key&&v!==null&&!isNaN(v)&&v!==0);
   if(!add.length) return k;
-  const boxes=new Set(add.map(([key])=>key.match(/^\d+/)[0]));
+  const boxOf=key=>(key.match(/^\d+[a-c]?/)||[""])[0];   // "20AJ" -> 20, "9a" -> 9a
+  const boxes=new Set(add.map(([key])=>boxOf(key)));
   // the box's generic "See statement" line (no amount) is replaced by the amounts typed in
   k.lines=k.lines.filter(l=>!(boxes.has(l.box)&&l.amt==null&&l.stmt&&!l.check));
-  for(const [key,v,src] of add){const box=key.match(/^\d+/)[0], code=key.slice(box.length)||null;
+  for(const [key,v,src] of add){const box=boxOf(key), code=key.slice(box.length)||null;
     k.lines.push({box,code,amt:v,stmt:true,check:false,raw:"added from statement",key,manual:true,src});}
   const ob=b=>{const i=ORDER.indexOf(b); return i<0?999:i;};
   k.lines=k.lines.map((l,i)=>[l,i]).sort((a,b)=>ob(a[0].box)-ob(b[0].box)||a[1]-b[1]).map(x=>x[0]);   // keep box order
@@ -369,7 +385,7 @@ function renderAll(){
 }
 async function refreshSummary(){
   if(STATIC||location.protocol==="file:") return;
-  try{const r=await fetch(BASE+"/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:K1S})}); if(r.ok) SUMMARY=await r.json();}catch(e){}
+  try{const r=await fetch(BASE+"/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:COUNTED(),token:TOKEN})}); if(r.ok) SUMMARY=await r.json();}catch(e){}
 }
 function postStmt(){
   if(!TOKEN||STATIC||location.protocol==="file:") return;
@@ -438,6 +454,11 @@ function wire(){
   document.querySelectorAll(".rmst").forEach(a=>a.addEventListener("click",ev=>{
     ev.preventDefault();
     const pg=a.dataset.page, src=a.dataset.src||"", i=+src.slice(1);
+    if(src[0]==="p"){   // added on K-1 Prep: removed there (kept by the server), then the page is read again
+      if(!TOKEN||STATIC||location.protocol==="file:") return;
+      k1Flush().then(()=>fetch(BASE+"/prep/"+TOKEN+"/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pline:{op:"del",page:pg,n:i}})})).catch(()=>{}).finally(()=>location.reload());
+      return;
+    }
     if(src[0]==="d"){ (st.stmtDone[pg]||[]).splice(i,1); if(!(st.stmtDone[pg]||[]).length) delete st.stmtDone[pg]; }
     else if(src[0]==="s" && st.stmt[pg]){ st.stmt[pg][i]=["",""]; if(st.stmt[pg].every(([x,y])=>!x&&!y)) delete st.stmt[pg]; }
     saveState(st); STMT=st.stmt; DONE=st.stmtDone;
@@ -462,6 +483,15 @@ function wire(){
       document.querySelectorAll(`.s11s[data-id="${id}"]`).forEach(o=>{ if(o!==c) o.checked=false; });
       if(c.checked) st.s11s[id]=c.dataset.v; else delete st.s11s[id];
       saveState(st); S11=st.s11s; applyStmt(); refreshSummary(); postStmt();
+    });
+  });
+  // K-1 copies: count / don't count (kept by the server with K-1 Prep's work) -> the page is read again
+  document.querySelectorAll(".dupc").forEach(c=>{
+    c.addEventListener("change",async()=>{
+      if(!TOKEN||STATIC||location.protocol==="file:") return;
+      await k1Flush();
+      await fetch(BASE+"/prep/"+TOKEN+"/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dup:{[c.dataset.page]:c.checked?c.dataset.v:""}})}).catch(()=>{});
+      location.reload();
     });
   });
   // Clear review marks: instantly un-checks Verified and clears line comments for that partnership
@@ -516,7 +546,7 @@ async function downloadExcel(msgEl){
   const st=loadState();
   say('<p class="hint">Building Excel…</p>');
   try{
-    const r=await fetch(BASE+"/excel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:K1S,ut:UT,pc:PC,items:st.items||{},filename:FILE,corr:st.corr||{}})});
+    const r=await fetch(BASE+"/excel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:COUNTED(),ut:UT,pc:PC,items:st.items||{},filename:FILE,corr:Object.assign({},SUMMARY.box_corr||{},st.corr||{})})});
     if(!r.ok) throw new Error("server said "+r.status);
     const blob=await r.blob(); const a=document.createElement("a");
     a.href=URL.createObjectURL(blob); a.download=(FILE.replace(/\.pdf$/i,"")||"K-1")+"_Income_Summary.xlsx";
@@ -531,7 +561,7 @@ async function uploadTo1040(msgEl){
   if(STATIC||location.protocol==="file:"||!TOKEN){say('<div class="error">Open the K-1 page from the 1040 to add the K-1s.</div>');return;}
   say('<p class="hint">Adding…</p>');
   try{
-    const r=await fetch(BASE+"/add/"+TOKEN,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:K1S,state:loadState()})});
+    const r=await fetch(BASE+"/add/"+TOKEN,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({k1s:COUNTED(),state:loadState()})});
     const j=await r.json(); if(!r.ok||!j.ok) throw new Error(j.error||("server said "+r.status));
     say(`<p class="hint"><b>Added to the Income Summary ${esc(String(j.at).slice(11))}:</b> ${j.k1s} K-1${j.k1s===1?"":"s"}, ${j.lines} line${j.lines===1?"":"s"} — refresh the 1040 page.</p>`);
   }catch(e){say(`<div class="error">Couldn't add (${esc(e.message)}).</div>`);}
@@ -546,14 +576,16 @@ const plain=n=>(n<0?"-":"")+Math.abs(n).toLocaleString("en-US",{maximumFractionD
 // ro=true: corrected numbers as text (reviewer HTML).
 function summaryHTML(ro){
   const C=corrMap(), pageUT=p=>UT[p]?` <span class="cnt">(UT #${esc(UT[p])})</span>`:"";
-  const cv=(rid,fed)=>{const v=pAmt(C[rid]); return (v===null||Number.isNaN(v))?fed:v;};
-  const cell=(rid,fed,sec,sub)=>{
-    if(ro){const v=cv(rid,fed), ch=C[rid]!=null&&C[rid]!==""&&!Number.isNaN(pAmt(C[rid])); return `<td class="n vb${ch?" chg":""}">${v||ch?fmt(v):""}</td>`;}
+  const BX=SUMMARY.box_corr||{}, dflt=(rid,fed)=>(rid in BX)?BX[rid]:fed;   // a box corrected on K-1 Prep moves the line's correction
+  const cv=(rid,fed)=>{const v=pAmt(C[rid]); return (v===null||Number.isNaN(v))?dflt(rid,fed):v;};
+  const cell=(rid,fed0,sec,sub)=>{
+    const fed=dflt(rid,fed0);
+    if(ro){const v=cv(rid,fed0), ch=(rid in BX)||(C[rid]!=null&&C[rid]!==""&&!Number.isNaN(pAmt(C[rid]))); return `<td class="n vb${ch?" chg":""}">${v||ch?fmt(v):""}</td>`;}
     return `<td class="n vb"><input class="corr" data-rid="${esc(rid)}" data-fed="${fed}" data-sec="${esc(sec)}"${sub?` data-sub="${esc(sub)}"`:""} value="${esc(C[rid]??"")}" placeholder="${fed?plain(fed):""}"></td>`;
   };
   let h=`<table class="t isum"><tr><th>Document/s</th><th class="n">Federal</th><th class="n">Correction</th><th>Comment</th></tr>`;
   let gtC=0;
-  const docRow=(r,sec)=>`<tr><td>${esc(r.doc)}${pageUT(r.page)}</td><td class="n vb blue">${fmt(r.amt)}</td>${cell(r.rid,r.amt,sec,r.sub)}<td class="cm">${esc(r.comment)}</td></tr>`;
+  const docRow=(r,sec)=>`<tr><td>${esc(r.doc)}${pageUT(r.page)}</td><td class="n vb blue">${fmt(r.amt)}</td>${cell(r.rid,r.amt,sec,r.sub)}<td class="cm">${esc(r.comment)}${(r.rid in BX)?(r.comment?"; ":"")+"box corrected on K-1 Prep":""}</td></tr>`;
   for(const s of SUMMARY.sections){
     h+=`<tr class="sp"><td></td><td class="vb"></td><td class="vb"></td><td></td></tr>`;
     let secC=0;
@@ -581,7 +613,7 @@ function utTag(i){const u=UT[K1S[i].page];return u?` <span class="cnt">· UT # $
 function totalsCards(ro){
   const byKey={};
   K1S.forEach((k,i)=>k.lines.forEach(l=>{
-    if(k.form!=="1065"||l.check||l.amt==null||l.amt===0) return;   // 1065 box numbers only (1120-S boxes differ)
+    if(skipK(k)||k.form!=="1065"||l.check||l.amt==null||l.amt===0) return;   // 1065 box numbers only (1120-S boxes differ)
     const key=l.box+(l.code||"");
     (byKey[key] ||= {box:l.box,code:l.code,sum:0,rows:[]});
     byKey[key].sum+=l.amt; byKey[key].rows.push([i,k.name,l.amt]);
@@ -596,14 +628,14 @@ function totalsCards(ro){
     const det=g.rows.map(([i,n,a])=>`<tr><td style="padding-left:24px">#${i+1} ${esc(n)}${utTag(i)}</td><td class="n">${fmt(a)}</td></tr>`).join("");
     return `<tr class="grp" onclick="this.nextElementSibling.classList.toggle('h')"><td>▸ ${esc(label)} <span class="cnt">(${g.rows.length})</span></td><td>${esc(r?r.where:"")}</td><td><span class="f">${esc(r?r.f1040:"")}</span></td><td class="n"><b>${fmt(g.sum)}</b></td></tr><tr class="h"><td colspan="4" style="padding:0"><table class="t">${det}</table></td></tr>`;
   }).join("");
-  const k3=K1S.filter(k=>k.lines.some(l=>l.box==="16")).length;
-  const stmtOnly=[]; K1S.forEach((k,i)=>k.lines.forEach(l=>{if(k.form==="1065"&&!l.check&&l.amt==null&&l.stmt) stmtOnly.push(`#${i+1} ${esc(k.name)} — Box ${l.box}${l.code?" "+l.code:""}`)}));
+  const k3=COUNTED().filter(k=>k.lines.some(l=>l.box==="16")).length;
+  const stmtOnly=[]; K1S.forEach((k,i)=>k.lines.forEach(l=>{if(!skipK(k)&&k.form==="1065"&&!l.check&&l.amt==null&&l.stmt) stmtOnly.push(`#${i+1} ${esc(k.name)} — Box ${l.box}${l.code?" "+l.code:""}`)}));
 
   // 8582
   const passiveBoxes=Object.keys(RULES).filter(k=>RULES[k].passive);
   let act="",excl="",inc=0,loss=0,n=0;
   K1S.forEach((k,i)=>{
-    if(k.form!=="1065") return;
+    if(k.form!=="1065"||skipK(k)) return;
     const items=k.lines.filter(l=>passiveBoxes.includes(l.box)&&!l.code&&l.amt);
     if(!items.length){excl+=(excl?"; ":"")+`#${i+1} ${esc(k.name)}`;return;}
     n++;
