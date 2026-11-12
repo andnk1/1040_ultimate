@@ -5,7 +5,8 @@ Contains client data: internal use only. Federal only.
 
 ## Settings (not in GitHub)
 `local_settings.json` next to `app.py` holds the office values: `always_mask` (numbers masked on every document) and
-`start_folders` (where the file dialogs open). It is listed in `.gitignore`; copy `local_settings.example.json` to create it.
+`start_folders` (where the file dialogs open)
+and `ut_entry` (`false` hides Bot / By hand on K-1 UT; default on). It is listed in `.gitignore`; copy `local_settings.example.json` to create it.
 Client folders (`Return_Info`, `Claude_1040_skill`, `_work`) and every PDF / Excel / CSV / Word / image file are ignored too.
 
 ## Install on another computer (Windows)
@@ -63,7 +64,7 @@ Double-click **run.bat** (installs flask, pdfplumber, pymupdf, openpyxl the firs
 | 1099 composite / 1099-INT / DIV / B / MISC / OID — Schwab, Fidelity / National Financial, M1, Robinhood, Apex-style | INT 1+3, OID; DIV 1a (1b noted), 2a → LT; 1099-B Total short-/long-term gain (or the reported / not-reported rows); §1256 aggregate split 60/40; MISC 3 + 8 → Other income, MISC 2 → Rental & royalties | Interest, Dividends, LT, ST, Other, Rental |
 | Schedule D (Form 1040) on its own — a crypto report (Koinly or any other program), recognized from the form | read like a 1099-B: one row per Form 8949 box from lines 1a / 1b, 2, 3 (ST) and 8a / 8b, 9, 10 (LT) — proceeds, cost, adjustments, gain in the comment; lines 4–6, 11–14 and the totals 7 / 15 are left out (other documents carry them) | ST, LT |
 | Schedule 1 (Form 1040) on its own | only line 8v (digital assets received as ordinary income) and line 8z (other income, the type listed in the comment) — one row each | Other income |
-| K-1 (1065) | in the K-1 section only (K-1 box → **Open K-1 Verification**, a new tab): 5 interest, 6a dividends, 8 ST, 9a+10 LT, 2+3+7 rental, 1+GP+11 ordinary. Nothing reaches the income summary until **Add to Income Summary** on the K-1 page (adding again replaces it; **Remove** in the K-1 box takes the lines off). The K-1 page's work is kept in `1040 Ultimate K-1 WIP … .json` next to the WIP file. A copy of the same K-1 (same partnership EIN, same box E, same year, same amounts) counts once; with different amounts it asks Count / Don't count. **K-1 Prep** (third button on the K-1 page; spec `design\k1_prep.md`): box E matched to taxpayer / spouse (last 4), Part II items, a corrected amount per box, lines added under a "see statement" line or with "+ Add line" (shown on the Interpreter too), red problems, and **Export for UT data entry** — the CSV the separate UT Data Entry app types into UltraTax | per K-1 rows |
+| K-1 (1065) | in the K-1 section only (K-1 box → **Open K-1 Verification**, a new tab): 5 interest, 6a dividends, 8 ST, 9a+10 LT, 2+3+7 rental, 1+GP+11 ordinary. Nothing reaches the income summary until **Add to Income Summary** on the K-1 page (adding again replaces it; **Remove** in the K-1 box takes the lines off). The K-1 page's work is kept in `1040 Ultimate K-1 WIP … .json` next to the WIP file. A copy of the same K-1 (same partnership EIN, same box E, same year, same amounts) counts once; with different amounts it asks Count / Don't count. **K-1 UT** (third button on the K-1 page; spec `design\k1_prep.md`): K-1s in file-name order, box E matched to taxpayer / spouse (last 4), Part II items, a corrected amount per box, lines added under a "see statement" line or with "+ Add line" (shown on the Interpreter too), red problems, **Bot / By hand** per line (orange reason; rules in `core\k1v\ut_entry.py`), the **To enter by hand in UltraTax** list (also as Excel / PDF), and **Export for UT data entry** — the CSV the separate UT Data Entry app types into UltraTax (`bot` rows only) | per K-1 rows |
 | 1099-MISC (IRS layout, e.g. Coinbase) | amounts by position in the box: 1 rents + 2 royalties → Rental, 3 + 8 → Other, 4 withholding | Rental, Other |
 | 1099-NEC (IRS layout) | 1a / 1 → Schedule C (memo); 1b cash tips, 1d overtime, 3 golden parachute → Other with the box named; 4 withholding | Sch C, Other |
 | 1099-INT (any layout, e.g. bank substitute forms) | label and amount on the same row: 1 (+3) interest, 2 penalty, 4 withholding, 6 foreign tax, 8 tax-exempt, bond premium → notes | Interest |
@@ -341,7 +342,8 @@ documents over 10 pages send only their summary pages to the AI; a tax year othe
 | `core/utscreens.py` | UltraTax input screens reader (W2, B&D statements, Rent, C) + document verification |
 | `core/wip.py` | Work in progress file (find / load / autosave / .bak) |
 | `core/k1v/k1_codes.py` | The one K-1 (1065) box / code list, UltraTax + IRS (UT wins); `python -m core.k1v.k1_codes` refreshes the reference CSV |
-| `core/k1v/prep.py` | K-1 Prep: box E match, box corrections, K-1 copies, the UT data entry CSV |
+| `core/k1v/prep.py` | K-1 UT page: box E match, box corrections, K-1 copies, the UT data entry CSV |
+| `core/k1v/ut_entry.py` | UltraTax entry rules (Bot / By hand, rows per code box) and the by-hand list as Excel / PDF |
 | `core/sche_template.py` | The standard Schedule E sheet: write (blank / filled) and read for the import |
 | `core/safe_pdf.py` | Opens each PDF in a separate process with a time limit (a hanging file can't freeze the program) |
 | `static/sche.js` | Schedule E box |

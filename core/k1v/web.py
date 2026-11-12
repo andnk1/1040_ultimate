@@ -11,8 +11,9 @@ Copied and adapted from C:\\dev\\K-1_interpretation\\verify1040.py (that folder 
     /k1v/k1/<token>         K-1 Interpreter (UltraTax entry guide, statement amounts, totals, Income Summary,
                             Add to Income Summary)
     /k1v/verify/<token>     K-1 entry check: every K-1 item vs what was typed in UltraTax
-    /k1v/prep/<token>       K-1 Prep (a run opened from the 1040): box E vs taxpayer / spouse, corrected amounts per box,
-                            problems, "Export for UT data entry" (the CSV of APPS_ARCHITECTURE.md) - see prep.py
+    /k1v/prep/<token>       K-1 UT (a run opened from the 1040): box E vs taxpayer / spouse, corrected amounts per box,
+                            problems, Bot / By hand (ut_entry.py), "Export for UT data entry" (the CSV of APPS_ARCHITECTURE.md),
+                            the by-hand list as Excel / PDF - see prep.py
     /k1v/                   stand-alone reader (upload the PDFs; no 1040 run, nothing goes to an income summary)
 A run opened from the 1040 has its owner (the 1040 run token) from the start. Nothing reaches the 1040 until "Add to Income
 Summary" (handoff.build_package -> HOOKS["added"]). The K-1 page's own work (statement amounts, ticks, comments, corrections)
@@ -33,7 +34,7 @@ from flask import Blueprint, abort, jsonify, render_template, request, send_file
 from .codes_1120s import BOXES_1120S
 from .k1_parser import parse_pdf
 from .k1_rules import ORDER, RULES
-from . import handoff, k1_codes, prep
+from . import handoff, k1_codes, prep, ut_entry
 from .k1_summary import build_summary, write_xlsx
 from .screen_parser import parse_screens
 from .screen_verify import verify_screens
@@ -416,7 +417,7 @@ def add_files(token):
     return jsonify(ok=True, added=len(new), problems=run["problems"])
 
 
-# ------------------------------------------------------------------ K-1 Prep (list of 2026-11-05, items 1 and 6)
+# ------------------------------------------------------------------ K-1 UT (K-1 Prep until 2026-11-11; list of 2026-11-05, items 1 and 6)
 def _prep_data(run):
     people = (HOOKS["people"] or (lambda o: {}))(run.get("owner")) if run.get("owner") else {}
     label = (HOOKS["label"] or (lambda o: ""))(run.get("owner")) if run.get("owner") else ""
@@ -427,7 +428,7 @@ def _prep_data(run):
 def prep_view(token):
     run = _run(token)
     if not run.get("owner"):
-        abort(400, "Open the K-1 page from the 1040 (K-1 box, Open K-1 Verification) for K-1 Prep.")
+        abort(400, "Open the K-1 page from the 1040 (K-1 box, Open K-1 Verification) for K-1 UT.")
     return render_template("k1v/prep.html", **_ctx(token=token, owner=run["owner"], data=_prep_data(run)))
 
 
@@ -449,12 +450,35 @@ def prep_export(token):
     run = _run(token)
     data = _prep_data(run)
     if not data["people"].get("tp"):
-        abort(400, "Enter the taxpayer SSN (last 4) on K-1 Prep first - box E is matched to it.")
+        abort(400, "Enter the taxpayer SSN (last 4) on K-1 UT first - box E is matched to it.")
     if not prep.export_rows(data):
         abort(400, "Nothing to export - no K-1 is Ready.")
     label = (HOOKS["label"] or (lambda o: ""))(run.get("owner")) if run.get("owner") else ""
     name = ("UT data entry K-1 " + label).strip() + ".csv"
     return send_file(BytesIO(prep.export_csv(data)), as_attachment=True, download_name=name, mimetype="text/csv")
+
+
+@bp.route("/prep/<token>/hand/<fmt>")
+def prep_hand(token, fmt):
+    """"By-hand list (Excel)" / "(PDF)": the lines to enter by hand in UltraTax (ut_entry.py), Ready K-1s, in the page's order."""
+    if fmt not in ("xlsx", "pdf") or not ut_entry.on():
+        abort(404)
+    run = _run(token)
+    data = _prep_data(run)
+    if not data["people"].get("tp"):
+        abort(400, "Enter the taxpayer SSN (last 4) on K-1 UT first - box E is matched to it.")
+    items = data["hand"]
+    if not items:
+        abort(400, "Nothing to enter by hand - no Ready K-1 has a by-hand line.")
+    label = (HOOKS["label"] or (lambda o: ""))(run.get("owner")) if run.get("owner") else ""
+    m = re.match(r"(\d{4})\s*-\s*", label)
+    year = m.group(1) if m else next((k["year"] for k in data["k1s"] if k.get("year")), "")
+    h = ut_entry.head(data["client"], year, items)
+    name = ("UT by hand K-1 " + (label or str(year))).strip() + "." + fmt
+    if fmt == "xlsx":
+        return send_file(BytesIO(ut_entry.hand_xlsx(items, h)), as_attachment=True, download_name=name,
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    return send_file(BytesIO(ut_entry.hand_pdf(items, h)), as_attachment=True, download_name=name, mimetype="application/pdf")
 
 
 @bp.route("/verify/<token>/excel")

@@ -478,6 +478,35 @@ Learning plan (Lady's doc): https://claude.ai/artifact/UF1Bn9myJWtaZPaJq6XyYF �
 - `APPS_ARCHITECTURE.md` (both folders, identical): the Part II rows. UT_Data_Entry's BUILD_NOTES has the same note.
 - Tests: `tests\test_k1prep.py` (Part II, statement line, free line checks, the Interpreter's save keeps `plines`).
 
+## K-1 UT: the UltraTax entry rules move to the 1040 (2026-11-11, built)
+- **Rule change (Lady):** the UltraTax entry rules (what goes in by bot, what by hand) live in the 1040, in one module
+  `core\k1v\ut_entry.py` (rules written in code, like `k1_codes.py`, + the Bot / By hand logic). Reverses "the 1040 knows
+  nothing about Source Data Entry". The 1040 decides; UT Data Entry types `bot` rows, skips `hand` rows, never decides again —
+  its Tab maps stay there (how to type) with one safety stop (a `bot` row its map doesn't have → stop and report).
+- Starting rules (1065): Not in Source Data Entry G, H1, J, L, M, N · Grey 9c, 12 · Checkbox – Tab can't reach it 16, 22, 23 ·
+  By hand 13 AE (Lady adds where it goes) · rows per code box 11:3, 13:3, 14:2, 15:2, 17:3, 18:3, 19:2, 20:8, lines beyond
+  (in the card's order) "Only N rows in Source Data Entry" · everything else Bot (K1 liabilities too).
+- **Claude's calls (in the plan, Lady said go):** a line that is by hand for another reason uses no SDE row (13 AE doesn't push
+  the 4th box-13 line out); a code not in UltraTax is By hand too ("Code not in UltraTax" — the bot can't pick it; the red
+  problem stays); a line with a red problem that keeps the K-1 out has no Entry until fixed; the by-hand list holds the Ready
+  K-1s only (the ones exported); "K-1 entry check" got the same mint look as the three named buttons.
+- Setting `"ut_entry": false` in `local_settings.json` (default on) hides the Entry column, the by-hand list and its buttons;
+  the CSV's `entry` / `entry_reason` stay as columns, blank.
+- **K-1 page:** "Add K-1 PDFs…", "K-1 Interpreter", "K-1 entry check", "K-1 UT" mint, all as wide as the widest.
+  "K-1 Prep" renamed **K-1 UT** (button, page title, Interpreter tags); file / code names unchanged.
+- **K-1 UT page:** K-1 list starts with Document (file name), then Partnership; sorted by file name, numbers first in number
+  order (`natural_key`, moved from `app.py` to `core\inventory.py` so both use one copy), K-1s in one PDF by page; cards
+  follow. Entry column + orange reason (`#B45309` on `#FEF3E2`, 4px line) in the Note cell; "To enter by hand in UltraTax"
+  card with ticks.
+- **By-hand list (Excel) / (PDF):** Document · Partnership · EIN · Box · Code · Description · Amount · Why · Done; header
+  client, tax year, date, count. Excel (openpyxl): whole-dollar numbers, header row frozen. PDF (PyMuPDF, no new package):
+  landscape letter, page numbers. `UT by hand K-1 <year> - <client>.xlsx / .pdf`.
+- **CSV:** `entry`, `entry_reason` added before `note`; every line still exported. `APPS_ARCHITECTURE.md` (roles, rules 1, 3,
+  4, 6, 8, CSV table) updated in both folders, identical. UT_Data_Entry's BUILD_NOTES: the rule pointer, the open question
+  closed, K1's format left open there.
+- Tests: `tests\test_ut_entry.py` (rules, row limits, setting off, number order, Excel, PDF) + `tests\test_k1prep.py` (order,
+  by-hand list and files, setting off, new CSV columns).
+
 ## Pending list
 Cleared on 2026-10-21 (Lady): the old items 32-49 and the open questions were dropped. Start a new list from zero when needed.
 (Item 1, ADP W-2 every box: built 2026-11-01 — see "W-2 — every box".)

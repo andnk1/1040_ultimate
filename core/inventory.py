@@ -249,6 +249,12 @@ def scan_folder(folder, py_year=None, py_return=None, extra_passwords=None) -> d
     return scan_files(list_folder(folder), py_year, py_return, extra_passwords)
 
 
+def natural_key(s: str) -> list:
+    """Sort key for file names: '2. W-2' before '10. K-1'; names that start with a number come before the others."""
+    parts = re.split(r"(\d+)", (s or "").lower().strip())
+    return [not parts[0] == ""] + [(0, int(p), "") if p.isdigit() else (1, 0, p) for p in parts if p != ""]
+
+
 def scan_files(paths: list, py_year: int | None = None, py_return: str | Path | None = None,
                extra_passwords=None) -> dict:
     """paths: the documents the user picked (files, in the order picked)."""

@@ -22,3 +22,4 @@ def _load() -> dict:
 S = _load()
 ALWAYS_MASK: list[str] = [str(x) for x in S.get("always_mask", [])]               # masked on every document
 START_FOLDERS: list[str] = [str(x) for x in S.get("start_folders", [])]           # where the file dialogs open
+UT_ENTRY: bool = S.get("ut_entry", True) is not False                          # K-1 UT: Bot / By hand (core/k1v/ut_entry.py)

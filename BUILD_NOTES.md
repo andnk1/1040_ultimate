@@ -2,7 +2,7 @@
 
 Hand-off for a new Claude session: the working rules, what's decided but not built, the open questions and the pending list.
 Finished, settled work is in **BUILD_HISTORY.md** (moved there unchanged, in date order — the "history:" names below are its
-section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`). Last updated 2026-11-10.
+section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`). Last updated 2026-11-11.
 
 ## Working rules (from Lady)
 - **List first, build on "go".** When Lady lists changes ("no changes yet", "keep a tab", "we may have more"), only add
@@ -62,7 +62,12 @@ section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`)
 - Run `tests\run_tests.bat` before reporting a reader / summary / Verify change as done — history: "Automated tests" (2026-11-03).
 - A test server never writes a work in progress (`wip_mod.save` a no-op) — history: "Verified = light mint" (2026-11-01).
 - From a cloud session: each changed file to a new output path per commit — history: "K-1 section" (2026-10-21).
-- The 1040 knows nothing about Source Data Entry; the only link to UT_Data_Entry is the CSV — `APPS_ARCHITECTURE.md`.
+- The UltraTax entry rules (Bot / By hand) live in the 1040, only in `core\k1v\ut_entry.py`; UT_Data_Entry types `bot`
+  rows and skips `hand` rows; the only link is the CSV — `APPS_ARCHITECTURE.md`, history: "K-1 UT: the UltraTax entry rules
+  move to the 1040" (2026-11-11).
+- K1 liabilities go to the UT data entry CSV as up to three numeric rows `K1_nonrecourse` / `K1_qualified` / `K1_recourse`
+  (ending amount with cents, Bot, a zero left out); still one K1 row on the K-1 UT page (`prep.k1_rows`). UT Data Entry's
+  switch to the CSV is not built yet — `APPS_ARCHITECTURE.md` (2026-11-11).
 
 ## Decided, not built (full text in the history)
 - **AI (Claude API):** "Parse with AI" on ticked documents, one call per document, nothing counts until confirmed, two models,
@@ -82,6 +87,8 @@ section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`)
 - 1099 composite joint accounts: how UltraTax carries them (decide when the composite is built) — history: "Form view — next forms".
 - The Sample K-1s read with no EIN and no partnership name — pending item 7 of the 2026-11-05 list.
 - 1120-S K-1s: box E untested (no sample) — history: "K-1 reader: box E".
+- 13 AE by hand: where it goes in UltraTax (Lady adds it; the reason now says just "By hand") — `ut_entry.py`.
+- Test case `tests\samples\K-1_Sample` has no answer key yet (`make_key`), so `test_cases_found` fails until it has one.
 
 ## Pending list (each list in full: history, "Pending list")
 List of 2026-11-02:

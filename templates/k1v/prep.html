@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>K-1 Prep</title>
+<title>K-1 UT</title>
 <style>
-/* screen spec: design/k1_prep.md (look: design/cfoa-tools.css + design/k1_prep_mockup.html, only the document-side columns) */
+/* screen spec: design/k1_prep.md (look: design/cfoa-tools.css + design/k1_prep_mockup.html v4) */
 :root{
   --navy:#003366; --blue:#3C69AB; --teal:#4e7874; --green:#446B67; --mint:#7DD8C9; --mint-hover:#9BE3D7;
   --ink:#374151; --line:#9AA3B2; --grey:#DFE1E9; --cardbg:#EFEFF7;
@@ -66,8 +66,15 @@ button.addline{background:var(--mint);color:var(--green);font-weight:700;padding
 #msg{font-size:.86rem;font-weight:600}
 #msg.err{color:var(--warn)}
 .box{font-weight:700;color:var(--navy);white-space:nowrap}
-td.wcell{color:var(--warn);font-weight:600;font-size:.8rem}
-tr.err td.wcell{background:var(--warn-bg)!important;box-shadow:inset 4px 0 0 var(--warn)}
+/* Note cell: a red problem (document side) and / or the orange by-hand reason (UltraTax can't take it by bot) */
+td.wcell{font-weight:600;font-size:.8rem;padding:0}
+td.wcell .w{padding:5px 9px 5px 13px}
+td.wcell .w.red{color:var(--warn);background:var(--warn-bg);box-shadow:inset 4px 0 0 var(--warn)}
+td.wcell .w.hand{color:var(--orange);background:var(--orangebg);box-shadow:inset 4px 0 0 var(--orange)}
+.entry{font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.entry.bot{color:var(--teal)}
+.entry.hand{color:var(--orange)}
+.empty{color:#8A93A3;font-style:italic}
 .see{font-weight:600;color:var(--orange)}
 .ssn.bad{background:var(--warn-bg);color:var(--warn);border-radius:4px;padding:1px 8px;font-weight:700}
 .status{font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
@@ -81,13 +88,13 @@ tr.err td.wcell{background:var(--warn-bg)!important;box-shadow:inset 4px 0 0 var
 .cnt label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
 .cnt input{width:16px;height:16px;accent-color:var(--green);margin:0}
 a.k1link{color:var(--navy);font-weight:600;text-decoration:none}
-col.gutc{width:28px} col.c-box{width:60px} col.c-code{width:70px} col.c-amt{width:150px} col.c-corr{width:190px} col.c-warn{width:320px}
+col.gutc{width:28px} col.c-box{width:60px} col.c-code{width:70px} col.c-amt{width:150px} col.c-corr{width:190px} col.c-entry{width:90px} col.c-warn{width:320px} col.c-k1{width:30%}
 </style>
 </head>
 <body>
 <div class="wrap">
   <p class="back"><a href="{{ k1v_base }}/?for={{ owner }}">&larr; K-1 Verification</a></p>
-  <h1>K-1 Prep</h1>
+  <h1>K-1 UT</h1>
   <div class="banner" id="banner"></div>
 
   <div class="card">
@@ -102,7 +109,7 @@ col.gutc{width:28px} col.c-box{width:60px} col.c-code{width:70px} col.c-amt{widt
     <div class="cardhead">K-1s<span class="sub" id="k1count"></span></div>
     <div class="cardbody">
       <table class="tk" id="sumtbl">
-        <thead><tr><th class="gut"></th><th>#</th><th>Partnership</th><th>EIN</th><th>Box E</th><th>Partner</th>
+        <thead><tr><th class="gut"></th><th>Document</th><th>Partnership</th><th>EIN</th><th>Box E</th><th>Partner</th>
           <th class="n">Lines</th><th>Status</th></tr></thead>
         <tbody></tbody>
       </table>
@@ -111,9 +118,22 @@ col.gutc{width:28px} col.c-box{width:60px} col.c-code{width:70px} col.c-amt{widt
 
   <div id="k1cards"></div>
 
+  <div class="card" id="handcard" hidden>
+    <div class="cardhead">To enter by hand in UltraTax<span class="sub" id="handcount"></span></div>
+    <div class="cardbody">
+      <table class="tk" id="handtbl">
+        <colgroup><col class="gutc"><col class="c-k1"><col class="c-box"><col class="c-code"><col><col class="c-warn"></colgroup>
+        <thead><tr><th class="gut"></th><th>K-1</th><th>Box</th><th>Code</th><th class="n">Amount</th><th>Why</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="bar">
     <button class="botbtn" type="button" id="savebtn">Save</button>
     <button class="botbtn" type="button" id="exportbtn">Export for UT data entry</button>
+    <button class="botbtn hand" type="button" id="handxlsx" hidden>By-hand list (Excel)</button>
+    <button class="botbtn hand" type="button" id="handpdf" hidden>By-hand list (PDF)</button>
     <span id="msg"></span>
   </div>
 </div>
@@ -129,6 +149,17 @@ const fmt = v => v == null || v === "" ? "" : (typeof v === "string" ? v
 const num = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); if (t === "") return null;
   const neg = /^\(.*\)$/.test(t) || t.startsWith("-"); const n = Number(t.replace(/[()\-]/g, "")); return isNaN(n) ? NaN : (neg ? -n : n); };
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const whole = v => typeof v === "number" ? (Math.round(v) < 0 ? "-" : "") + Math.abs(Math.round(v)).toLocaleString("en-US") : (v ?? "");
+
+// Entry (Bot / By hand, from ut_entry.py) + the Note cell: red problem first, then the orange by-hand reason
+function tail(r){
+  const ut = DATA.ut_entry;
+  const ent = ut ? `<td>${r.entry ? `<span class="entry ${r.entry}">${r.entry === "bot" ? "Bot" : "By hand"}</span>` : ""}</td>` : "";
+  const w = [];
+  if (r.problem) w.push(`<div class="w red">${esc(r.problem)}</div>`);
+  if (ut && r.why && r.why !== r.problem) w.push(`<div class="w hand">${esc(r.why)}</div>`);
+  return ent + `<td class="wcell">${w.join("")}</td>`;
+}
 
 // count / don't count on a "check" K-1 (same partnership and partner, different amounts)
 function countBox(k){
@@ -144,7 +175,7 @@ const dupNote = k => !k.dup ? "" : k.dup.kind === "copy" ? `Copy of ${esc(k.dup.
 function row(k, r){
   const cls = [r.tick ? "vok" : "", r.problem ? "err" : ""].join(" ").trim();
   const tick = `<td class="gut"><input type="checkbox" class="vk" data-id="${esc(r.id)}" ${r.tick ? "checked" : ""}></td>`;
-  const prob = `<td class="wcell">${esc(r.problem)}</td>`;
+  const prob = tail(r);
   const pg = k.page;
   if (r.kind === "info")                                   // Part II item: value as printed, no corrected amount
     return `<tr class="${cls}">${tick}<td class="box">${esc(r.box)}</td><td></td><td>${esc(r.desc)}</td>
@@ -181,10 +212,11 @@ function render(){
   const d = DATA, fid = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fid : null;
   for (const w of ["tp", "sp"]) { const el = document.getElementById(w); if (document.activeElement !== el) el.value = d.people[w] || ""; }
   document.getElementById("banner").textContent = [d.client, plural(d.n, "K-1"), `${d.ready} ready`, `${d.todo} to finish`, plural(d.prob, "problem")]
-    .filter(Boolean).join(" · ") + (d.off ? ` · ${d.off} not counted` : "") + (d.n1120 ? ` · ${d.n1120} Form 1120-S not shown` : "");
+    .filter(Boolean).join(" · ") + (d.off ? ` · ${d.off} not counted` : "") + (d.ut_entry ? ` · ${plural(d.hand.length, "item")} by hand` : "")
+    + (d.n1120 ? ` · ${d.n1120} Form 1120-S not shown` : "");
   document.getElementById("k1count").textContent = plural(d.n, "K-1");
 
-  document.querySelector("#sumtbl tbody").innerHTML = d.k1s.map((k, ki) => `<tr class="${k.status[0] === "off" ? "dim" : ""}"><td class="gut"></td><td>${k.n}</td>
+  document.querySelector("#sumtbl tbody").innerHTML = d.k1s.map((k, ki) => `<tr class="${k.status[0] === "off" ? "dim" : ""}"><td class="gut"></td><td>${esc(k.file)}</td>
     <td><a class="k1link" href="#k1-${ki}">${esc(k.name || "(name not read)")}</a></td>
     <td>${esc(k.ein)}</td><td>${k.partner.ok ? esc(k.E) : `<span class="ssn bad">${esc(k.E || "not read")}</span>`}</td><td>${esc(k.partner.who)}</td>
     <td class="n">${k.nlines}</td><td><span class="status ${k.status[0]}">${esc(k.status[1])}</span>${countBox(k)}</td></tr>`).join("");
@@ -199,14 +231,23 @@ function render(){
       <div class="cardbody">
         ${k.partner.ok ? "" : `<div class="warning">${esc(k.partner.msg)}</div>`}${dn}
         <table class="tk">
-          <colgroup><col class="gutc"><col class="c-box"><col class="c-code"><col><col class="c-amt"><col class="c-corr"><col class="c-warn"></colgroup>
-          <thead><tr><th class="gut"></th><th>Box</th><th>Code</th><th>Description</th><th class="n">Per document</th><th class="n">Corrected amount</th><th>Problem</th></tr></thead>
+          <colgroup><col class="gutc"><col class="c-box"><col class="c-code"><col><col class="c-amt"><col class="c-corr">${d.ut_entry ? `<col class="c-entry">` : ""}<col class="c-warn"></colgroup>
+          <thead><tr><th class="gut"></th><th>Box</th><th>Code</th><th>Description</th><th class="n">Per document</th><th class="n">Corrected amount</th>${d.ut_entry ? "<th>Entry</th>" : ""}<th>Note</th></tr></thead>
           <tbody>${k.rows.map(r => row(k, r)).join("")}
-            <tr class="addrow"><td class="gut"></td><td colspan="6"><button class="addline" type="button" data-page="${k.page}">+ Add line</button></td></tr></tbody>
+            <tr class="addrow"><td class="gut"></td><td colspan="${d.ut_entry ? 7 : 6}"><button class="addline" type="button" data-page="${k.page}">+ Add line</button></td></tr></tbody>
         </table>
       </div>
     </div>`;
   }).join("");
+  // To enter by hand in UltraTax (Ready K-1s, the page's order); hidden with the "ut_entry" setting off
+  document.getElementById("handcard").hidden = !d.ut_entry;
+  document.querySelectorAll("button.hand").forEach(b => b.hidden = !d.ut_entry);
+  document.getElementById("handcount").textContent = plural(d.hand.length, "item");
+  document.querySelector("#handtbl tbody").innerHTML = d.hand.length ? d.hand.map(h => `<tr class="${h.tick ? "vok" : ""}">
+    <td class="gut"><input type="checkbox" class="vk" data-id="${esc(h.id)}" ${h.tick ? "checked" : ""}></td>
+    <td>K-1 #${h.n} · ${esc(h.name || "(name not read)")}</td><td class="box">${esc(h.box)}</td><td><b>${esc(h.code)}</b></td>
+    <td class="n">${typeof h.amt === "string" ? h.amt.split("; ").map(esc).join("<br>") : esc(whole(h.amt))}</td><td class="wcell"><div class="w hand">${esc(h.why)}</div></td></tr>`).join("")
+    : `<tr><td class="gut"></td><td colspan="5" class="empty">Nothing to enter by hand${d.ready < d.n - d.off ? " on the Ready K-1s" : ""}</td></tr>`;
   if (fid) { const el = document.querySelector(`[data-fid="${CSS.escape(fid)}"]`); if (el && el !== document.activeElement) el.focus(); }
 }
 
@@ -264,18 +305,26 @@ document.getElementById("savebtn").addEventListener("click", async () => {
   if (await save({})) { const m = document.getElementById("msg"); m.textContent = "Saved " + new Date().toLocaleTimeString("en-US", {hour: "2-digit", minute: "2-digit"}); }
 });
 
-document.getElementById("exportbtn").addEventListener("click", async () => {
+// a file from the server (the CSV, the by-hand list): saved by the browser; the server's message when it refuses
+async function download(url, fallback, done){
   const msg = document.getElementById("msg"); msg.textContent = ""; msg.className = "";
   try {
-    const r = await fetch(`${BASE}/prep/${TOKEN}/export`);
+    const r = await fetch(url);
     if (!r.ok) { const t = await r.text(); const m = t.match(/<p>([\s\S]*?)<\/p>/); throw new Error(m ? m[1] : "server said " + r.status); }
-    const cd = r.headers.get("Content-Disposition") || "", fn = (cd.match(/filename="?([^";]+)"?/) || [])[1] || "UT data entry K-1.csv";
+    const cd = r.headers.get("Content-Disposition") || "", fn = (cd.match(/filename="?([^";]+)"?/) || [])[1] || fallback;
     const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = fn;
     document.body.appendChild(a); a.click(); a.remove();
-    const left = DATA.n - DATA.ready - DATA.off;
-    msg.textContent = `Exported ${plural(DATA.ready, "K-1")}` + (left ? ` — ${left} not exported (to finish or with a problem)` : "");
+    msg.textContent = done();
   } catch (e) { const d = document.createElement("textarea"); d.innerHTML = e.message; msg.textContent = d.value; msg.className = "err"; }
-});
+}
+
+document.getElementById("exportbtn").addEventListener("click", () => download(`${BASE}/prep/${TOKEN}/export`, "UT data entry K-1.csv", () => {
+  const left = DATA.n - DATA.ready - DATA.off;
+  return `Exported ${plural(DATA.ready, "K-1")}` + (left ? ` — ${left} not exported (to finish or with a problem)` : "");
+}));
+for (const [id, ext] of [["handxlsx", "xlsx"], ["handpdf", "pdf"]])
+  document.getElementById(id).addEventListener("click", () => download(`${BASE}/prep/${TOKEN}/hand/${ext}`, `UT by hand K-1.${ext}`,
+    () => `By-hand list saved (${plural(DATA.hand.length, "item")})`));
 
 render();
 </script>

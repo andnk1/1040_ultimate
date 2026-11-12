@@ -29,7 +29,7 @@ from flask import Flask, abort, jsonify, redirect, render_template, request, url
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from core.inventory import scan_files, list_folder, ROUTE_LBL, summary_pages_for  # noqa: E402
+from core.inventory import scan_files, list_folder, ROUTE_LBL, summary_pages_for, natural_key as _natural  # noqa: E402
 from core.py_return import read_prior_return, read_schedule_c, read_schedule_e, read_py_income, match_expected, SCHC_LINES, SCHE_LINES  # noqa: E402
 from core.income import build_income_summary, build_deduction_summary, CATS, DED_CATS                                     # noqa: E402
 from core.parsers import parse_document, koinly_8949_group  # noqa: E402
@@ -698,12 +698,6 @@ def inventory_rows(r) -> list:
                          feeds="", cy=f.get("cy"), sec=f.get("sec", ""), note=f.get("note", ""),
                          verified=bool(f.get("verified")), ai=False, free=True))
     return rows
-
-
-def _natural(s: str) -> list:
-    """Sort key: '2. W-2' before '10. K-1'; names that start with a number come before the others."""
-    parts = re.split(r"(\d+)", s.lower().strip())
-    return [not parts[0] == ""] + [(0, int(p), "") if p.isdigit() else (1, 0, p) for p in parts if p != ""]
 
 
 def _feeds_label(d) -> str:

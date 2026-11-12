@@ -301,7 +301,7 @@ function renderK1(k,i){
     const tags=[]; if(l.stmt) tags.push(T.stmt); if(l.manual) tags.push(T.man,`<a href="#" class="rmst noprint" data-page="${k.page}" data-src="${l.src}" title="Remove this added amount">remove</a>`); if(l.box==="16") tags.push(T.k3); if(general && l.code) tags.push(T.gen);
     const value=l.check?"Checked":(l.amt==null?"See statement":fmt(l.amt));
     const pcv=l.lid?parseAmt(PCORR[l.lid]):null;
-    if(pcv!==null&&!Number.isNaN(pcv)&&l.amt!=null&&pcv!==l.amt) tags.push(`<span class="tag man">K-1 Prep: corrected to ${fmtIn(pcv)}</span>`);
+    if(pcv!==null&&!Number.isNaN(pcv)&&l.amt!=null&&pcv!==l.amt) tags.push(`<span class="tag man">K-1 UT: corrected to ${fmtIn(pcv)}</span>`);
     if(!r){ out.push(item(title,value,[T.norule].concat(tags),tri("","Read the statement. No UT mapping yet.",""),true)); continue; }
     const flag=r.flag?nbox(r.flag):"";   // Form 7217 note: orange (tag stays red)
     out.push(item(title,value,tags.concat(r.flag?[T.f7217]:[]),tri(r.where,flag+esc(fill(r.note,k)).replace(/\n/g,"<br>"),esc(fill(r.why,k)),r.f1040,r.ut_warning,r.where_note,
@@ -585,7 +585,7 @@ function summaryHTML(ro){
   };
   let h=`<table class="t isum"><tr><th>Document/s</th><th class="n">Federal</th><th class="n">Correction</th><th>Comment</th></tr>`;
   let gtC=0;
-  const docRow=(r,sec)=>`<tr><td>${esc(r.doc)}${pageUT(r.page)}</td><td class="n vb blue">${fmt(r.amt)}</td>${cell(r.rid,r.amt,sec,r.sub)}<td class="cm">${esc(r.comment)}${(r.rid in BX)?(r.comment?"; ":"")+"box corrected on K-1 Prep":""}</td></tr>`;
+  const docRow=(r,sec)=>`<tr><td>${esc(r.doc)}${pageUT(r.page)}</td><td class="n vb blue">${fmt(r.amt)}</td>${cell(r.rid,r.amt,sec,r.sub)}<td class="cm">${esc(r.comment)}${(r.rid in BX)?(r.comment?"; ":"")+"box corrected on K-1 UT":""}</td></tr>`;
   for(const s of SUMMARY.sections){
     h+=`<tr class="sp"><td></td><td class="vb"></td><td class="vb"></td><td></td></tr>`;
     let secC=0;

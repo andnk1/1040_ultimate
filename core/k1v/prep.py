@@ -1,8 +1,9 @@
-"""prep.py - K-1 Prep: the verified K-1 lines for UltraTax data entry (list of 2026-11-05, items 1 and 6).
+"""prep.py - K-1 UT (called K-1 Prep until 2026-11-11): the verified K-1 lines for UltraTax data entry (list of 2026-11-05,
+items 1 and 6).
 
 One verified set, two deliverables: "Add to Income Summary" (handoff.py) and "Export for UT data entry" (the CSV of
-APPS_ARCHITECTURE.md, read by the separate UT Data Entry app). This module knows nothing about Source Data Entry: no row
-limits, grey fields or Tab order - only what can be fixed on the document side shows as a problem:
+APPS_ARCHITECTURE.md, read by the separate UT Data Entry app). Bot / By hand (what UltraTax's Source Data Entry can take) is
+decided by ut_entry.py, not here; only what can be fixed on the document side shows as a red problem:
 
   * box E (partner's identifying number) matches neither / both of taxpayer and spouse (last 4 digits);
   * a code UltraTax doesn't have (the line is still exported, valid_in_ut = N);
@@ -41,13 +42,15 @@ import csv
 import io
 import re
 
-from . import k1_codes
+from . import k1_codes, ut_entry
+from ..inventory import natural_key
 from .handoff import FORMS, _num
 
 PREP_KEYS = ("pcorr", "pticks", "dup", "people", "plines")
 CHECK_BOXES = ("16", "22", "23")
 NOT_IN_UT = "Code not in UltraTax"                 # the one red problem that doesn't keep the K-1 out of the export
-CSV_COLUMNS = ["form", "doc_id", "payer_ein", "payer_name", "recipient_id", "box", "code", "amount", "valid_in_ut", "note"]
+CSV_COLUMNS = ["form", "doc_id", "payer_ein", "payer_name", "recipient_id", "box", "code", "amount", "valid_in_ut", "entry",
+               "entry_reason", "note"]
 
 
 # ------------------------------------------------------------------ line ids
@@ -286,7 +289,7 @@ def _pct(v) -> str:
 
 def part2(k: dict) -> list:
     """Part II items as printed -> [(item, description, [screen lines], export text)], in form order; an item not read is left
-    out (K1 / N when every amount is zero)."""
+    out (K1 / N when every amount is zero). K1 is one row on the page; the export splits it (k1_rows)."""
     out = []
     if k.get("G"):
         out.append(("G", "Partner type", [k["G"]], k["G"]))
@@ -314,6 +317,24 @@ def part2(k: dict) -> list:
     if isinstance(N, (list, tuple)) and len(N) == 2 and (N[0] or N[1]):
         out.append(("N", "Net unrecognized section 704(c) gain (loss) (beginning → ending)", [f"{_whole(N[0])} → {_whole(N[1])}"],
                     f"{_amt_text(N[0])} -> {_amt_text(N[1])}"))
+    return out
+
+
+# K1 liabilities in the CSV: three numeric rows, the field names of UT Data Entry's Tab map (Lady, 2026-11-11)
+K1_FIELDS = (("Nonrecourse", "K1_nonrecourse", "Nonrecourse"),
+             ("Qualified nonrecourse financing", "K1_qualified", "Qualified nonrecourse financing"),
+             ("Recourse", "K1_recourse", "Recourse"))
+
+
+def k1_rows(k: dict) -> list:
+    """Item K1 for the export: [(box, ending amount, note)], one per liability type; an ending amount of 0 (or not read) is
+    left out."""
+    K = k.get("K1") or {}
+    out = []
+    for key, box, name in K1_FIELDS:
+        v = K.get(key)
+        if isinstance(v, (list, tuple)) and len(v) == 2 and v[1]:
+            out.append((box, float(v[1]), f"Share of liabilities - ending: {name}"))
     return out
 
 
@@ -349,7 +370,8 @@ def _rows(k: dict, st: dict, interp: list) -> list:
                  valid=k1_codes.valid_in_ut(box, code), note="from statement" if fixed else "added line"))
 
     for item, label, lines, text in part2(k):
-        add(dict(id=f"{pg}|II|{item}", kind="info", box=item, code="", desc=label, vals=lines, eff=text, problem="", block=False))
+        add(dict(id=f"{pg}|II|{item}", kind="info", box=item, code="", desc=label, vals=lines, eff=text, problem="", block=False,
+                 **(dict(parts=k1_rows(k)) if item == "K1" else {})))
 
     face = [l for l in k.get("lines") or [] if l.get("check") or l.get("amt") != 0]
     lid = lambda l: l.get("lid") or f"{pg}|{l['box'] + (l.get('code') or '')}|x"
@@ -397,7 +419,8 @@ def _rows(k: dict, st: dict, interp: list) -> list:
 
 
 def build(run: dict, people_default: dict | None = None, fids: list | None = None, client: str = "") -> dict:
-    """Everything the K-1 Prep page shows (Form 1065 K-1s, in the Interpreter's order)."""
+    """Everything the K-1 UT page shows (Form 1065 K-1s, by document: numbered names first in number order, then A-Z; K-1s in
+    one PDF by page), with Bot / By hand (ut_entry.py) and the by-hand list."""
     st = run.get("state") or {}
     people = {**{"tp": "", "sp": ""}, **{k: _last4(v) for k, v in (people_default or {}).items()},
               **{k: _last4(v) for k, v in (st.get("people") or {}).items() if k in ("tp", "sp")}}
@@ -405,14 +428,15 @@ def build(run: dict, people_default: dict | None = None, fids: list | None = Non
     files = run.get("files") or []
     where = lambda p: f"PDF page {p % 1000}" + (f" of {files[p // 1000][1]}" if len(files) > 1 and p // 1000 < len(files) else "")
     marks = {p: dict(m, of_label=", ".join(where(o) for o in m["of"])) for p, m in marks.items()}
-    ks = sorted([k for k in run.get("k1s") or [] if k.get("form") in FORMS], key=lambda k: (k.get("name") or "").lower())
+    fname = lambda k: files[k["page"] // 1000][1] if k["page"] // 1000 < len(files) else ""
+    ks = sorted([k for k in run.get("k1s") or [] if k.get("form") in FORMS], key=lambda k: (natural_key(fname(k)), k["page"]))
     interp = run.get("manual") or manual_of(st)
     out = []
     for n, k in enumerate(ks):
         fi = k["page"] // 1000
         m = marks.get(k["page"])
         p = _partner(k, people)
-        rows = _rows(k, st, interp.get(str(k["page"])) or [])
+        rows = ut_entry.decide(_rows(k, st, interp.get(str(k["page"])) or []))
         problems = []
         if m and m["kind"] == "copy":
             status = ["off", "Copy — not counted"]
@@ -439,9 +463,13 @@ def build(run: dict, people_default: dict | None = None, fids: list | None = Non
                         nlines=sum(1 for r in rows if r["kind"] in ("line", "check", "interp", "add")),
                         nred=sum(1 for r in rows if r["problem"])))
     count = lambda s: sum(1 for k in out if k["status"][0] == s)
-    return dict(client=client, people=people, k1s=out, n=len(out), ready=count("ready"), todo=count("todo"), prob=count("no"),
-                off=count("off"), n1120=sum(1 for k in run.get("k1s") or [] if k.get("form") == "1120-S"),
-                codes=k1_codes.codes_by_box())
+    d = dict(client=client, people=people, k1s=out, n=len(out), ready=count("ready"), todo=count("todo"), prob=count("no"),
+             off=count("off"), n1120=sum(1 for k in run.get("k1s") or [] if k.get("form") == "1120-S"),
+             codes=k1_codes.codes_by_box(), ut_entry=ut_entry.on())
+    d["hand"] = ut_entry.hand_items(d)
+    for it in d["hand"]:
+        it["tick"] = bool((st.get("pticks") or {}).get(it["id"]))
+    return d
 
 
 def save(run: dict, d: dict) -> None:
@@ -522,8 +550,10 @@ def keep_prep_keys(old: dict | None, new: dict) -> dict:
 
 # ------------------------------------------------------------------ the export (APPS_ARCHITECTURE.md: the CSV)
 def export_rows(data: dict) -> list:
-    """One row per verified line of every Ready K-1, in the page's order: the Part II items (value as printed, as text), the lines
-    read (corrected amount when there is one, else per document), the statement lines and the added lines; a copy once."""
+    """One row per verified line of every Ready K-1, in the page's order: the Part II items (value as printed, as text; K1 as up
+    to three numeric rows K1_nonrecourse / K1_qualified / K1_recourse, ending amounts, zero left out), the lines
+    read (corrected amount when there is one, else per document), the statement lines and the added lines; a copy once.
+    By-hand lines are exported too: entry = hand + entry_reason (blank with the "ut_entry" setting off)."""
     out = []
     for k in data["k1s"]:
         if not k["ready"]:
@@ -531,12 +561,17 @@ def export_rows(data: dict) -> list:
         for r in k["rows"]:
             if r["kind"] == "stmt":
                 continue                                     # "see statement": its lines follow
+            head = ["1065", k["doc_id"], k["ein"], k["name"], k["E"]]
+            if r["kind"] == "info" and r["box"] == "K1":     # liabilities, ending: up to three numeric rows (k1_rows)
+                out += [head + [box, "", f"{v:.2f}", "", r.get("entry", ""), r.get("why", ""), note]
+                        for box, v, note in r.get("parts") or []]
+                continue
             if r["kind"] == "info":
                 amt = r["eff"]
             else:
                 amt = "X" if r["eff"] == "X" else f"{r['eff']:.2f}"
             note = r["desc"] if r["kind"] == "info" else r["note"]
-            out.append(["1065", k["doc_id"], k["ein"], k["name"], k["E"], r["box"], r["code"], amt, r["valid"], note])
+            out.append(head + [r["box"], r["code"], amt, r["valid"], r.get("entry", ""), r.get("why", ""), note])
     return out
 
 

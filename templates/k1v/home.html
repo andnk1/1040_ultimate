@@ -26,6 +26,10 @@ button:hover,a.btn:hover{background:#1A4D80}
 a.btn.alt{background:var(--green)} a.btn.alt:hover{background:var(--teal)}
 a.btn.off{background:#B8BDC7;pointer-events:none}
 .btnrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+/* buttons inside the boxes (design rules): mint, green bold text, no border, all as wide as the widest one (set below) */
+button.mbtn,a.btn.mbtn{background:var(--mint);color:var(--green);font-weight:700;border:none;text-align:center;white-space:nowrap;flex:none;line-height:1.3;font-family:inherit}
+button.mbtn:hover,a.btn.mbtn:hover{background:#9BE3D7}
+a.btn.mbtn.off{background:var(--mint);opacity:.45}
 .error{background:var(--warnbg);border-left:4px solid var(--warn);color:var(--warn);padding:10px 14px;border-radius:6px;margin:0 0 16px;font-weight:600;font-size:.86rem}
 .banner{background:#F1F5F4;border-left:4px solid #294F4C;color:#294F4C;font-weight:600;padding:12px 16px;border-radius:6px;margin-bottom:16px;font-size:.9rem;line-height:1.6}
 .disclaimer{font-size:.75rem;color:#6B7280;margin-top:34px;line-height:1.5}
@@ -66,7 +70,7 @@ table.v td.empty{width:20%}
       <table class="v"><tr><th>K-1 PDFs</th></tr>
         {% for p, n in run.files %}<tr><td title="{{ p }}">{{ n }}</td></tr>{% else %}<tr><td class="hint">No K-1 PDFs yet</td></tr>{% endfor %}
       </table>
-      <button type="button" id="addK1">Add K-1 PDFs…</button> <span class="hint" id="addMsg"></span>
+      <button type="button" class="mbtn" id="addK1">Add K-1 PDFs…</button> <span class="hint" id="addMsg"></span>
       <script>
       document.getElementById('addK1').addEventListener('click', async () => {
         const m = document.getElementById('addMsg');
@@ -103,9 +107,9 @@ table.v td.empty{width:20%}
         {% else %}No Input Screens read &mdash; the K-1 check needs the Input Screens PDF.{% endif %}
       </div>
       <div class="btnrow">
-        <a class="btn" href="{{ k1v_base }}/k1/{{ token }}" target="_blank">K-1 Interpreter</a>
-        <a class="btn alt {% if not run.result %}off{% endif %}" href="{{ k1v_base }}/verify/{{ token }}" target="_blank">K-1 entry check</a>
-        {% if owner %}<a class="btn alt {% if not run.n1065 %}off{% endif %}" href="{{ k1v_base }}/prep/{{ token }}" target="_blank">K-1 Prep</a>{% endif %}
+        <a class="btn mbtn" href="{{ k1v_base }}/k1/{{ token }}" target="_blank">K-1 Interpreter</a>
+        <a class="btn mbtn {% if not run.result %}off{% endif %}" href="{{ k1v_base }}/verify/{{ token }}" target="_blank">K-1 entry check</a>
+        {% if owner %}<a class="btn mbtn {% if not run.n1065 %}off{% endif %}" href="{{ k1v_base }}/prep/{{ token }}" target="_blank">K-1 UT</a>{% endif %}
       </div>
     </div>
   </div>
@@ -137,8 +141,17 @@ table.v td.empty{width:20%}
 function showTab(t) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
+  sameWidth();
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+// the mint buttons: all as wide as the widest one on the page
+function sameWidth() {
+  const bs = [...document.querySelectorAll('.mbtn')];
+  bs.forEach(b => b.style.width = '');
+  const w = Math.max(0, ...bs.map(b => b.getBoundingClientRect().width));
+  if (w) bs.forEach(b => b.style.width = Math.ceil(w) + 'px');
+}
+sameWidth();
 </script>
 </body>
 </html>
