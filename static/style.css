@@ -364,3 +364,11 @@ table.v tr.mk.done.ambrow td, table.v tr.mk.done.badrow td, table.fvt tr.mk.done
 table.inc tbody.secblk tr.done td, table.inc tbody.secblk tr.docrow.done td, table.inc tbody.secblk tr.added.done td{background:#E8F8F5}
 table.inc tbody.secblk tr.tot.done td, table.inc tr.grand.done td, table.fvt tr.mk.done td.fvtot, table.inc tbody.secblk tr.done td.tot{background:#D3F1EC}
 .aisteps{margin:0;padding-left:22px;line-height:1.7}
+/* AI requests screen (templates/ai_requests.html, design/ai_requests.md) - existing colors only */
+pre.aireply{background:#fff;border:1px solid var(--grey);border-radius:8px;padding:12px 14px;max-height:65vh;overflow:auto;font-size:.8rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:var(--ink);margin:6px 0 0}
+table.v.aidocs select{font:inherit;font-size:.84rem;padding:3px 6px;border:1px solid var(--grey);border-radius:5px}
+.aigroup .chips{margin:4px 0 10px}
+.aibar{margin:12px 0 6px}
+.aierr{margin-top:8px}
+.card .cardbody button.aisend:disabled{opacity:.55;cursor:default}
+.invadd td.aibtn{text-align:right;white-space:nowrap}

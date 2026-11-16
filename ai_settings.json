@@ -1,0 +1,19 @@
+{
+  "_help": "AI (Claude API) settings - edit freely, restart run.bat after a change. The API key is NOT here: it goes in .env (ANTHROPIC_API_KEY=...).",
+  "tab_name": "AI Doc Review",
+  "max_tokens": 32000,
+  "timeout_seconds": 600,
+  "requests": {
+    "schedule_e":   {"label": "Create Schedule E", "file": "schedule_e.md", "model": "claude-opus-5-5", "effort": "high",
+                     "attach": "schedule_e_template"},
+    "parse_income": {"label": "Parse income information", "coming": true},
+    "custom":       {"label": "Type a request", "coming": true}
+  },
+  "_prices_help": "US$ per million tokens [input, output] - for the cost estimate in AI_logs only. Check https://claude.com/pricing when a model changes.",
+  "prices": {
+    "claude-opus-5-5":   [4.00, 20.00],
+    "claude-sonnet-5-5": [2.00, 10.00],
+    "claude-haiku-5-5":  [0.10, 0.50],
+    "claude-fable-5-2":  [8.00, 40.00]
+  }
+}

@@ -49,6 +49,24 @@ HEADER_KEY = {_norm(h): k for k, h in COLUMNS}
 HEADER_KEY.update({_norm("19 Other"): "19", _norm("19 Other - description"): "19d"})     # older sheets
 
 
+def template_rows(props: list) -> list:
+    """The rows Export Template pre-fills: one per named property, Schedule E # / Property # from its place (6 per tab),
+    short + full address (the name when no full address is known), owner when known; amounts stay blank.
+    props = the prior-year properties (Export Template) or the Schedule E screen's properties (AI tab); placeholders
+    (empty padding columns) and "Property n" names are skipped but keep their place."""
+    rows = []
+    for i, p in enumerate(props or []):
+        name = (p.get("name") or "").strip()
+        if p.get("placeholder") or not name or re.fullmatch(r"Property \d+", name):
+            continue
+        info = p.get("info") or {}
+        row = dict(sch=i // 6 + 1, num=i % 6 + 1, short=p["name"], address=(info.get("full_address") or "").strip() or p["name"])
+        if info.get("owner"):
+            row["owner"] = info["owner"]
+        rows.append(row)
+    return rows
+
+
 def write_template(path, rows: list | None = None, flags: list | None = None) -> str:
     """Writes the standard sheet (blank when rows is None). rows: [{key: value}] with the COLUMNS keys."""
     from openpyxl import Workbook
@@ -98,7 +116,7 @@ def write_template(path, rows: list | None = None, flags: list | None = None) ->
     for r, t in enumerate(HOW_TO, 1):
         ht.cell(r, 1, t).font = norm
     ht.column_dimensions["A"].width = 120
-    wb.save(str(path))
+    wb.save(path if hasattr(path, "write") else str(path))          # a file-like object too (the AI tab builds it in memory)
     return str(path)
 
 

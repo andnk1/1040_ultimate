@@ -38,7 +38,10 @@
       </tr>
       {% endfor %}
       {% for m in r.inv.missing %}<tr class="r-skipped"><td></td><td>{{ m }}</td><td colspan="7" class="flag">File not found</td></tr>{% endfor %}
-      <tr class="invadd noprint"><td class="ck"><button type="button" class="plus" title="Add a line" onclick="invAdd()">+</button></td><td colspan="8"></td></tr>
+      <tr class="invadd noprint"><td class="ck"><button type="button" class="plus" title="Add a line" onclick="invAdd()">+</button></td>
+        <td colspan="8" class="aibtn">{# under the AI column: opens the AI tab with the ticked documents - sends nothing (design/ai_requests.md) #}
+          <button type="button" title="Opens the AI tab with the documents ticked AI — nothing is sent from here"
+                  onclick="(window.toaiPending || Promise.resolve()).finally(() => { location.href = '/ai/{{ token }}'; })">Send to AI tab</button></td></tr>
     </table>
     </div>
     <div id="fvPane" style="display:none"></div>{# form tabs: static/forms.js #}

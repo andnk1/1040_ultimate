@@ -2,14 +2,15 @@
 
 Hand-off for a new Claude session: the working rules, what's decided but not built, the open questions and the pending list.
 Finished, settled work is in **BUILD_HISTORY.md** (moved there unchanged, in date order — the "history:" names below are its
-section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`). Last updated 2026-11-11.
+section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`). Last updated 2026-11-12.
 
 ## Working rules (from Lady)
 - **List first, build on "go".** When Lady lists changes ("no changes yet", "keep a tab", "we may have more"), only add
   them to the numbered pending list below and confirm. Build only when she says go / implement / apply.
 - **Client data stays local.** Never use unmasked documents; she removes them. Work only with masked (redacted) files.
   The app itself reads unmasked forms (all fields visible, 2026-11-01): parsers are built for full documents, not masked ones;
-  masking is only for what goes to the AI. Test with samples / public forms.
+  its AI tab sends originals too (the firm's API agreement allows it, 2026-11-12). Masking is only for the Mask page's
+  redacted copies (e.g. files shared in a Claude Code / Cowork session). Test with samples / public forms.
 - **Masking:** always mask the firm EIN kept in `local_settings.json` (never put it in code or GitHub). First names stay
   visible; payer / employer names and amounts are never masked.
 - **GitHub:** she removes PDFs herself before pushing; `.gitignore` excludes client data, WIP json, `.bak`, xlsx.
@@ -69,7 +70,32 @@ section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`)
   (ending amount with cents, Bot, a zero left out); still one K1 row on the K-1 UT page (`prep.k1_rows`). UT Data Entry's
   switch to the CSV is not built yet — `APPS_ARCHITECTURE.md` (2026-11-11).
 
+## AI requests (Claude API) — 2026-11-12, in progress (spec `design\ai_requests.md`)
+- **Status:** Step 1 built (settings, `.env`, the sending function, Send to AI tab, the AI tab table + dropdown, Send, raw reply,
+  cost log). Step 2 (review grid) and Step 3 (Accept) not built — the brief asks to stop after each step for testing.
+- All AI code is in `core\ai\`; `core\ai\client.py` → `send()` is the only place that calls the API. Request types are files:
+  `ai_requests\<name>.md` (system prompt) + an entry in `ai_settings.json` (label, model, effort; reply size / timeout).
+  `schedule_e.md` copied in unchanged.
+- The AI screen is step tab 3 "AI Doc Review" (Lady, 2026-11-12 — the brief said tab 4); its name is `tab_name` in
+  `ai_settings.json`. Tab 4 "AI Return Review" keeps its placeholder (the later review of the finished return).
+- Model for Create Schedule E: `claude-opus-5-5`, effort high (accuracy on messy client sheets; one call per client, cents per call).
+- **No masking for the AI (Lady, 2026-11-12):** the firm's API agreement allows client data, so the AI tab sends the
+  originals (PDF as is; Excel / Word / text as text from the original; file names and template unmasked). Long PDFs still
+  send only their AI pages (cut in memory); password PDFs go without the password. `send_unmasked` setting removed.
+  The Mask page itself is unchanged.
+- Schedule E template for the AI = `sche_template.template_rows()` on the Schedule E screen's properties, written by
+  `write_template` in memory (Export Template uses the same function on last year's properties — unchanged).
+- Calls run streamed in a background thread (time limit enforced in the loop); only a successful, valid-JSON reply is kept.
+  No server-side refusal fallback to another model (the model stays the one in the settings; a refusal is shown as an error).
+- `AI_logs\cost_log.csv` (one line per call, no client data; `.gitignore` lets it through). Request + raw reply in `_work\ai\`.
+
 ## Decided, not built (full text in the history)
+- **Consolidated statements (Lady, 2026-11-12):** entered in UltraTax by form type, not through UltraTax's Consolidated
+  Brokerage Statement (the keyboard can't move between its tabs, and its 1099-B is a grid). The 1040 keeps one document per
+  statement; its summary covers 1099-DIV, 1099-INT and 1099-B (1099-B as totals by 8949 category, the way the firm enters it).
+  The export splits a statement into rows with `form` = 1099-DIV / 1099-INT / 1099-B (same payer, one `doc_id` per
+  statement + form). Separate DIV / INT entries per broker in UltraTax are fine for the firm. The CSV needs an account
+  number (agree in `APPS_ARCHITECTURE.md`). 1099-DA is not on UltraTax's consolidated list: decide separately.
 - **AI (Claude API):** "Parse with AI" on ticked documents, one call per document, nothing counts until confirmed, two models,
   saved by fingerprint, guidance not training, scans as images (no OCR) — history: "AI (Claude API)" (2026-11-02).
   Learning plan: https://claude.ai/artifact/UF1Bn9myJWtaZPaJq6XyYF
@@ -82,7 +108,6 @@ section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`)
   pending item 2 of the 2026-11-05 list.
 
 ## Open questions
-- AI: mask documents before sending? Depends on the retention agreement — history: "AI (Claude API)".
 - One start file for all the apps, or each started on its own? — history: "Masking and printing = separate apps".
 - 1099 composite joint accounts: how UltraTax carries them (decide when the composite is built) — history: "Form view — next forms".
 - The Sample K-1s read with no EIN and no partnership name — pending item 7 of the 2026-11-05 list.
@@ -92,7 +117,8 @@ section titles); a screen with a spec is in `design\` (e.g. `design\k1_prep.md`)
 
 ## Pending list (each list in full: history, "Pending list")
 List of 2026-11-02:
-- 4. `AI_logs/` folder (corrections + cost log, goes to GitHub, no client data) — build with the AI.
+- 4. `AI_logs/` folder (corrections + cost log, goes to GitHub, no client data) — cost log built 2026-11-12; corrections log
+  comes with Accept (AI requests step 3).
 - 6. 1120-S K-1s through the same route as 1065 (`handoff.FORMS`).
 
 List of 2026-11-05:

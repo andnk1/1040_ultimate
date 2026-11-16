@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1040 Ultimate · {{ tab }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% from '_steps.html' import steps %}
+{# The AI requests screen (step tab 3) - spec design/ai_requests.md. Step 1: documents, request per document, Send, raw reply. #}
+<div class="wrap">
+  <h1>{{ tab }}</h1>
+  {{ steps(token, 'ai') }}
+
+  {% if not has_key %}<div class="error">{{ no_key_msg }}</div>{% endif %}
+
+  <div class="card">
+    <div class="cardhead"><span>Documents for AI</span><span class="sub">{{ docs|length }} document{{ '' if docs|length == 1 else 's' }} ticked on the inventory</span></div>
+    <div class="cardbody">
+      {% if not docs %}
+      <p>No documents are ticked for AI. Tick <b>AI</b> on the Document inventory (1 · Summary), then click <b>Send to AI tab</b>.</p>
+      {% else %}
+      <table class="v aidocs">
+        <tr><th class="n">#</th><th>File name</th><th>Type</th><th>Copy sent</th><th>Request</th></tr>
+        {% for d in docs %}
+        <tr>
+          <td class="n">{{ d.num }}</td>
+          <td title="{{ d.path }}">{{ d.name }}</td>
+          <td>{{ d.type }}</td>
+          <td>{% if d.problem %}<span class="flag">{{ d.problem }}</span>{% else %}{{ d.sent }}{% endif %}</td>
+          <td><select class="aireq" data-key="{{ d.key }}">
+            <option value="" {{ 'selected' if d.request == '' }}>— not sent —</option>
+            {% for t in types %}<option value="{{ t.key }}" {{ 'disabled' if t.coming }} {{ 'selected' if d.request == t.key }}>{{ t.label }}{{ ' (coming)' if t.coming }}</option>{% endfor %}
+          </select></td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p class="hint">Documents go as they are (not masked). A long PDF sends only its AI pages (the inventory's list).</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% for g in groups %}
+  <div class="card aigroup" data-req="{{ g.key }}">
+    <div class="cardhead"><span>{{ g.label }}</span><span class="sub">{{ g.docs|length }} document{{ '' if g.docs|length == 1 else 's' }} · model {{ g.model }}{{ ' · effort ' ~ g.effort if g.effort }} · sent together in one call</span></div>
+    <div class="cardbody">
+      <p><b>{{ g.docs|length }} document{{ '' if g.docs|length == 1 else 's' }}</b> ({% for d in g.docs %}{{ d.num }}{{ ', ' if not loop.last }}{% endfor %})
+        · request <b>{{ g.label }}</b> · model <b>{{ g.model }}</b></p>
+      {% if g.template is not none %}
+        {% if g.template %}
+        <p>Schedule E template: {{ g.template|length }} propert{{ 'y' if g.template|length == 1 else 'ies' }} from the return – attached automatically</p>
+        <div class="chips">{% for a in g.template %}<span class="chip">{{ a }}</span>{% endfor %}</div>
+        {% else %}
+        <p>Schedule E template: no properties on the return – every property will come back as new (the blank template is attached)</p>
+        {% endif %}
+      {% endif %}
+      {% for p in g.problems %}<div class="error aiprob">{{ p }}</div>{% endfor %}
+      <div class="bar aibar">
+        <button type="button" class="aisend" data-req="{{ g.key }}" data-job="{{ running.get(g.key, '') }}" {{ 'disabled' if g.problems or not has_key }}>Send</button>
+        <span class="note aistatus"></span>
+      </div>
+      {% set e = errors.get(g.key) %}
+      <div class="error aierr" {% if not e %}style="display:none"{% endif %}>{% if e %}{{ e.error }}{% endif %}</div>
+      {% if e and e.text %}<details class="aiwrong"><summary class="note">The reply as received (not used)</summary><pre class="aireply">{{ e.text }}</pre></details>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% for g in groups %}{% set x = last.get(g.key) %}{% if x %}
+  <div class="card">
+    <div class="cardhead"><span>Reply — {{ g.label }}</span>
+      <span class="sub">{{ x.at }} · {{ x.seconds }} s · {{ "{:,}".format(x.input_tokens) }} in / {{ "{:,}".format(x.output_tokens) }} out tokens{% if x.cost is not none %} · about ${{ "%.2f"|format(x.cost) }}{% endif %} · {{ x.model }}</span></div>
+    <div class="cardbody">
+      <p class="note">Documents: {% for d in x.documents %}{{ d.num }} {{ d.name }}{{ ' · ' if not loop.last }}{% endfor %}. Raw reply as received — the review grid comes in step 2.</p>
+      <pre class="aireply">{{ x.text }}</pre>
+    </div>
+  </div>
+  {% endif %}{% endfor %}
+</div>
+<script>
+(function () {
+  const TOKEN = {{ token|tojson }};
+  const post = (url, body) => fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then(r => r.json());
+  document.querySelectorAll('select.aireq').forEach(s => s.addEventListener('change', async () => {
+    await post(`/ai/${TOKEN}/choice`, {key: s.dataset.key, request: s.value});
+    location.reload();                                   // the request boxes below follow the dropdowns
+  }));
+  function watch(btn, job) {
+    const box = btn.closest('.aigroup'), st = box.querySelector('.aistatus'), err = box.querySelector('.aierr');
+    btn.disabled = true; btn.textContent = 'Working…'; err.style.display = 'none';
+    const tick = async () => {
+      let j;
+      try { j = await (await fetch(`/ai/${TOKEN}/job/${job}`)).json(); } catch (e) { setTimeout(tick, 3000); return; }
+      if (j.error) { done(j.error); return; }
+      if (!j.done) { st.textContent = `Waiting for the reply… ${j.seconds} s`; setTimeout(tick, 2000); return; }
+      location.reload();                                 // success or failure: the page shows the reply / the error
+    };
+    const done = msg => { btn.disabled = false; btn.textContent = 'Send'; st.textContent = ''; err.textContent = msg; err.style.display = ''; };
+    tick();
+  }
+  document.querySelectorAll('button.aisend').forEach(btn => {
+    if (btn.dataset.job) watch(btn, btn.dataset.job);    // a call still running (page reloaded)
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const j = await post(`/ai/${TOKEN}/send`, {request: btn.dataset.req});
+      if (j.error) { const err = btn.closest('.aigroup').querySelector('.aierr'); err.textContent = j.error; err.style.display = ''; btn.disabled = false; return; }
+      watch(btn, j.job);
+    });
+  });
+})();
+</script>
+</body>
+</html>

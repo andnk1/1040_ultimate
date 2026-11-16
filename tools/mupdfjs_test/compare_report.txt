@@ -1,0 +1,26 @@
+Today:   PyMuPDF 2.0 (MuPDF 1.28.5)
+Browser: MuPDF.js 1.28.6
+
+DIFFERENT  10. 254597_K1_2025_Multicoin Venture Fund II US_Jonathan Mcfaul.pdf
+  page 5 WORDS differ: 287 vs 287 words; first at #0: [48.6, 701.0, 59.6, 754.2, 'MULTICOIN']  vs  [37.8, 48.6, 91, 59.6, 'MULTICOIN']
+SAME       11. 254597_New York State K1_2025_Multicoin Venture Fund II US, LP_Jonathan Mcfaul.pdf
+SAME       12. 380960_K1_2025_6TH MAN VENTURES FUND IIB, LP_Jonathan Mcfaul.pdf
+SAME       12. K-1(Something_Else LLC)_sample.pdf
+SAME       13. Belltower 2025 Consolidated Schedule K-1 Package (Jonathan Mcfaul).pdf
+SAME       13. K-1 - Anonymous - Claire Smith_sample_CHECK.pdf
+SAME       13. K-1 - Lifelike Capital Fund LP - Ohyoon Ohm.pdf
+SAME       14. Lemniscap Opportunities Fund I, LP_K1_2025 1010_Jonathan Mcfaul-PW2400.pdf
+SAME       15. Ranchers 2025 K-1 14-JONATHAN MCFAUL.pdf
+SAME       16. RCapital Crypto II - Flipside K-1.pdf
+SAME       17. Rise Ventures Growth Fund, LP_K1_2025 1008_Jonathan Mcfaul PW-2400.PDF
+SAME       2. 2025 K1 - Achari Ventures Fund I, L.P. - Jonathan McFaul.pdf
+SAME       3. 2025 K1 - TVC Momentum Fund I, LP - Jonathan Mcfaul.pdf
+SAME       4. 2025 K1 - Welcan Strategic Opportunities Fund, L.P. - Jonathan Le Vu Mcfaul.pdf
+SAME       5. 2025 K1 OP FOF PW- T6QtnrOC.pdf
+SAME       6. 2025 K1 Rcrypto.pdf
+SAME       7. 2025 K1 Sanctor PW - 8wRxFRRM.pdf
+SAME       8. 2025 REBEL FUND II QP, LP J312705 K-1 - 28 Mcfaul, Jonathan.pdf
+DIFFERENT  9. 245288_K1_2025_Alliance Delaware Feeder II LP_Jonathan Mcfaul PW -501723.pdf
+  page 4 WORDS differ: 616 vs 616 words; first at #35: [30.0, 87.5, 56.5, 111.8, 'PART']  vs  [30, 100.9, 56.5, 111.8, 'PART']
+
+RESULT: 17 same, 2 different

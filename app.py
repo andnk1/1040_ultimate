@@ -64,6 +64,12 @@ try:                                          # K-1 Verification pages (/k1v) - 
 except Exception as _e:                       # noqa: BLE001 - a problem there must never stop the rest of the app
     k1v_web = None
     print(f"K-1 Verification section not loaded: {type(_e).__name__}: {_e}")
+try:                                          # AI requests (Claude API) - step tab 3, its own module (core/ai)
+    from core.ai.web import register as _register_ai
+    _register_ai(app, lambda t: _run(t), lambda r: inventory_rows(r))
+except Exception as _e:                       # noqa: BLE001 - a problem there must never stop the rest of the app
+    app.jinja_env.globals.setdefault("AI_TAB_NAME", "AI Doc Review")
+    print(f"AI requests section not loaded: {type(_e).__name__}: {_e}")
 # first place the Browse buttons look (the first one that exists on this computer)
 DEFAULT_DIRS = START_FOLDERS + [str(HERE / "Return_Info")]     # start folders come from local_settings.json
 
@@ -882,13 +888,10 @@ def sche_template_dl(token=None):
     from io import BytesIO
     from flask import send_file
     import tempfile
-    from core.sche_template import write_template
+    from core.sche_template import write_template, template_rows
     rows = None
     if token:
-        py_props = _run(token).get("sche_py") or []
-        rows = [dict(sch=i // 6 + 1, num=i % 6 + 1, short=p["name"], address=p["name"])
-                for i, p in enumerate(py_props)
-                if (p.get("name") or "").strip() and not re.fullmatch(r"Property \d+", p["name"].strip())]   # skip "Property n" placeholders
+        rows = template_rows(_run(token).get("sche_py") or [])       # skips "Property n" placeholders (same rows the AI tab sends)
     p = Path(tempfile.mkdtemp()) / "Schedule E template.xlsx"
     write_template(p, rows or None)
     return send_file(BytesIO(p.read_bytes()), as_attachment=True, download_name="Schedule E template.xlsx",
@@ -1221,19 +1224,7 @@ def verify_save(token):
 
 # the AI step pages: what each will do (Lady's text, 2026-11-02) - nothing behind them yet
 AI_PAGES = {
-    "ai": dict(title="AI Doc Review", what=[
-        "Reads, with the Claude API, the documents the program can't read or that you tick AI on the inventory.",
-        "One request per document: the AI says what the document is (form, issuer), reads its amounts and suggests where each one "
-        "goes. Python reading stays the default — the AI runs only when you click Parse with AI."], how=[
-        "On the inventory, tick AI on the documents to read.",
-        "Click Parse with AI (standard model).",
-        "Standard forms (W-2, 1099 composite …) open in their form tab, lines marked AI. Other forms and non-standard documents "
-        "(e-mails, contracts) get a card here: type, issuer, summary, quote, amounts, Goes to, actions.",
-        "Check each amount against the document, correct it, choose where it goes, then Confirm. Nothing counts on the income "
-        "summary until you confirm.",
-        "Unsure? Verify with stronger model — both answers are shown, differences highlighted; you pick.",
-        "Every change you make to an AI answer is logged (AI_logs). Review the log regularly: repeated mistakes become rules in the "
-        "AI guidance files."]),
+    # "ai" (step tab 3) is the AI requests screen - core/ai/web.py, spec design/ai_requests.md (2026-11-12)
     "aireturn": dict(title="AI Return Review", what=[
         "The AI reviews the finished return for what the numbers can't show: Karbon answers vs the return, Client Summary items, "
         "prior year → current year (forms filed, payers, carryovers, filing status, dependents), and missed deductions and "
@@ -1251,11 +1242,6 @@ AI_PAGES = {
 def _ai_page(token, key):
     _run(token)
     return render_template("ai_page.html", token=token, page=dict(AI_PAGES[key], key=key))
-
-
-@app.route("/ai/<token>")
-def ai(token):
-    return _ai_page(token, "ai")
 
 
 @app.route("/ai-return/<token>")

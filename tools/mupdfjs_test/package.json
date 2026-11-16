@@ -1,0 +1,1 @@
+{ "name": "mupdfjs-test", "private": true, "type": "module", "dependencies": { "mupdf": "1.28.6" } }
